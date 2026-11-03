@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
 import re
-import subprocess
 import os
-
-OCR_TOOL_PATH = "/Users/corybaxter/Desktop/AI/projects/HVAC-partslist/ocr_tool"
-
-def run_vision_ocr(image_path):
-    if not os.path.exists(OCR_TOOL_PATH):
-        return ""
-    try:
-        cmd = [OCR_TOOL_PATH, image_path]
-        res = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=20)
-        return res.decode('utf-8', errors='replace')
-    except Exception as e:
-        print(f"Receipt OCR Error: {e}")
-        return ""
+from jobber_parser import run_vision_ocr, OCR_TOOL_PATH
 
 SIMPLIFIED_RULES = [
     # Custom Job Transitions / Filters
