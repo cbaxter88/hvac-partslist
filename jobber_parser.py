@@ -18,6 +18,47 @@ def run_vision_ocr(image_path):
 def parse_jobber_text(text):
     text_lower = text.lower()
     
+    # 0. Job # and Customer Name extraction
+    job_number = ""
+    job_patterns = [
+        r'(?:Job|Work\s*Order|Invoice|Quote|WO|Job\s*#)[:\s#]+([0-9]{3,8})\b',
+        r'#\s*([0-9]{4,8})\b',
+        r'\bJob\s+([0-9]{3,8})\b'
+    ]
+    for p in job_patterns:
+        m = re.search(p, text, re.IGNORECASE)
+        if m:
+            job_number = m.group(1).strip()
+            break
+
+    customer_name = ""
+    cust_patterns = [
+        r'(?:Client|Customer|Name|Bill\s*To|Property)[:\s]+([A-Za-z0-9\s,\.\x27\-]{2,30})',
+        r'(?:Job\s*(?:for|at))[:\s]+([A-Za-z0-9\s,\.\x27\-]{2,30})',
+        r'\bfor\s+([A-Z][a-z]{2,20})\b'
+    ]
+    for p in cust_patterns:
+        m = re.search(p, text, re.IGNORECASE)
+        if m:
+            c = m.group(1).strip().split('\n')[0]
+            if len(c) >= 2 and not any(w in c.lower() for w in ['system', 'air', 'furnace', 'american', 'standard']):
+                customer_name = c
+                break
+
+    if not customer_name:
+        m_paren = re.search(r'\(([A-Z][a-z]{2,20})\)', text)
+        if m_paren:
+            customer_name = m_paren.group(1).strip()
+
+    if job_number and customer_name:
+        job_title = f"Job #{job_number} ({customer_name})"
+    elif job_number:
+        job_title = f"Job #{job_number}"
+    elif customer_name:
+        job_title = f"Job: {customer_name}"
+    else:
+        job_title = ""
+
     # 1. Brand detection
     brands = [
         "American Standard", "Trane", "Carrier", "Lennox", "Bryant", 
@@ -334,6 +375,9 @@ def parse_jobber_text(text):
     sub = " • ".join(sub_parts) if sub_parts else f"{tonnage}-Ton System"
 
     return {
+        "job_number": job_number,
+        "customer_name": customer_name,
+        "job_title": job_title,
         "title": title,
         "subtitle": sub,
         "profile": system_type,
