@@ -1,0 +1,369 @@
+import re
+import subprocess
+import os
+
+OCR_TOOL_PATH = "/Users/corybaxter/Desktop/AI/projects/HVAC-partslist/ocr_tool"
+
+def run_vision_ocr(image_path):
+    if not os.path.exists(OCR_TOOL_PATH):
+        return ""
+    try:
+        cmd = [OCR_TOOL_PATH, image_path]
+        res = subprocess.check_output(cmd, stderr=subprocess.STDOUT, timeout=15)
+        return res.decode('utf-8', errors='replace')
+    except Exception as e:
+        print(f"OCR Error: {e}")
+        return ""
+
+def parse_jobber_text(text):
+    text_lower = text.lower()
+    
+    # 1. Brand detection
+    brands = [
+        "American Standard", "Trane", "Carrier", "Lennox", "Bryant", 
+        "Rheem", "Ruud", "Goodman", "Daikin", "Mitsubishi", "Bosch", 
+        "York", "Payne", "Amana", "Heil", "Tempstar", "RunTru", "Oxbox",
+        "Coleman", "Armstrong", "Ducane", "Navien"
+    ]
+    detected_brand = ""
+    for b in brands:
+        if b.lower() in text_lower:
+            detected_brand = b
+            break
+            
+    # Model-specific brand inferences
+    if not detected_brand:
+        if "s9x1" in text_lower or "s8x1" in text_lower or "4a7a" in text_lower or "4ttr" in text_lower or "silver" in text_lower:
+            detected_brand = "American Standard"
+        elif "bova" in text_lower or "bva" in text_lower or "ids 2.0" in text_lower:
+            detected_brand = "Bosch"
+        elif "59tp" in text_lower or "24sca" in text_lower or "infinity" in text_lower or "puron" in text_lower:
+            detected_brand = "Carrier"
+        elif "el296" in text_lower or "ml196" in text_lower or "ml14" in text_lower:
+            detected_brand = "Lennox"
+        elif "r96v" in text_lower or "ra14" in text_lower:
+            detected_brand = "Rheem"
+        elif "gm9c" in text_lower or "gsx14" in text_lower:
+            detected_brand = "Goodman"
+        elif "puz" in text_lower or "msz" in text_lower:
+            detected_brand = "Mitsubishi"
+        else:
+            detected_brand = "HVAC System"
+            
+    # 2. System Type detection
+    # Check explicit "furnace only" or "ac only"
+    has_furnace_only = bool(re.search(r'\bfurnace\s*only\b', text_lower))
+    has_ac_only = bool(re.search(r'\b(ac|air\s*condition(er|ing)?)\s*only\b', text_lower))
+
+    is_minisplit = bool(re.search(r'\b(mini[- ]?split|ductless)\b', text_lower))
+    is_heatpump = bool(re.search(r'\b(heat pump|heatpump|hp)\b', text_lower))
+    is_furnace = bool(re.search(r'\b(furnace|gas heat)\b', text_lower))
+    is_ac = bool(re.search(r'\b(ac|air condition(er|ing)?|condenser)\b', text_lower))
+
+    if has_furnace_only:
+        is_ac = False
+        is_heatpump = False
+        is_minisplit = False
+        system_type = "furnace-only"
+        type_title = "Furnace Only"
+    elif has_ac_only:
+        is_furnace = False
+        system_type = "ac-only"
+        type_title = "AC Only (Condenser & Coil)"
+    elif is_minisplit:
+        system_type = "mini-split"
+        type_title = "Mini-Split Heat Pump"
+    elif is_heatpump:
+        system_type = "heatpump"
+        type_title = "Heat Pump System"
+    elif is_ac and is_furnace:
+        system_type = "full-system"
+        type_title = "Full System AC & Furnace"
+    elif is_ac:
+        system_type = "ac-only"
+        type_title = "AC Only (Condenser & Coil)"
+    elif is_furnace:
+        system_type = "furnace-only"
+        type_title = "Furnace Only"
+    else:
+        system_type = "full-system"
+        type_title = "Full System AC & Furnace"
+
+    # 3. Tonnage detection
+    tonnage = 2.5 # default fallback
+    ton_match = re.search(r'(\d+(?:\.\d+)?)\s*[-_ ]*\s*ton\b', text_lower)
+    if not ton_match:
+        ton_match = re.search(r'\b(\d+(?:\.\d+)?)\s*[-_ ]*\s*t\b', text_lower)
+
+    if ton_match:
+        try:
+            val = float(ton_match.group(1))
+            if 1.0 <= val <= 10.0:
+                tonnage = val
+        except:
+            tonnage = 2.5
+    else:
+        # Check BTU equivalent in AC context only (avoid matching 60k/80k furnace BTU)
+        ac_context_match = re.search(r'(?:ac|air|condenser|heat pump|hp).*?\b(18|24|30|36|42|48|60)\s*k\b', text_lower)
+        if ac_context_match:
+            ton_map = {"18": 1.5, "24": 2.0, "30": 2.5, "36": 3.0, "42": 3.5, "48": 4.0, "60": 5.0}
+            tonnage = ton_map.get(ac_context_match.group(1), 2.5)
+
+    # 4. SEER detection
+    seer_match = re.search(r'(\d+(?:\.\d+)?)\s*[- ]?seer(?:2)?', text_lower)
+    seer = (seer_match.group(1) + ("-SEER2" if "seer2" in text_lower else "-SEER")) if seer_match else ("13-SEER2" if "seer2" in text_lower else "14-SEER")
+
+    # 5. Furnace specs (BTU & Efficiency)
+    furnace_btu = "60k"
+    furnace_eff = "80%"
+    is_condensing_90plus = False
+
+    if is_furnace:
+        f_btu_match = re.search(r'(?:furnace|gas).*?(\d{2,3})\s*k', text_lower)
+        if not f_btu_match:
+            f_btu_match = re.search(r'\b(\d{2,3})\s*k\b', text_lower)
+        if f_btu_match:
+            furnace_btu = f_btu_match.group(1) + "k"
+        
+        eff_match = re.search(r'(\d{2})%', text_lower)
+        if eff_match:
+            eff_num = int(eff_match.group(1))
+            if eff_num >= 90:
+                is_condensing_90plus = True
+                furnace_eff = f"{eff_num}% Condensing"
+            else:
+                furnace_eff = f"{eff_num}% Standard"
+        elif "95%" in text_lower or "96%" in text_lower or "s9x1" in text_lower:
+            is_condensing_90plus = True
+            furnace_eff = "95% Condensing"
+
+    # 6. Lineset sizing rules
+    if system_type == "furnace-only":
+        lineset_size = "None (Furnace Only)"
+        lineset_note = "No outdoor lineset needed"
+    elif tonnage <= 2.0:
+        lineset_size = '3/8" x 3/4" x 50ft'
+        lineset_note = f'Matched to {tonnage}-Ton'
+    elif tonnage <= 3.5:
+        lineset_size = '3/8" x 3/4" x 50ft'
+        lineset_note = f'Matched to {tonnage}-Ton'
+    else: # 4.0 - 5.0 Ton
+        lineset_size = '3/8" x 7/8" x 50ft'
+        lineset_note = f'Matched to {tonnage}-Ton (Heavy 7/8" Suction)'
+
+    # 7. Venting rules
+    if is_furnace:
+        if is_condensing_90plus:
+            venting_spec = '2" Sch 40 PVC (2 sticks) + 90s'
+            venting_note = f'{furnace_eff} (No Metal B-Vent)'
+        else:
+            venting_spec = '4" Metal B-Vent pipe + Draft Hood'
+            venting_note = f'{furnace_eff} Non-Condensing Natural Draft'
+    else:
+        venting_spec = 'None (Electric Heat Pump / AC only)'
+        venting_note = 'No combustion venting required'
+
+    # 8. Electrical sizing rules
+    if system_type == "furnace-only":
+        elec_spec = '15A 1-Pole Breaker (120V) + SSU Switch'
+        elec_note = '120V Branch circuit for furnace ignition & blower'
+    elif tonnage <= 2.5:
+        elec_spec = '30A 2-Pole Breaker + 10/2 Romex'
+        elec_note = f'MOPD: 30A Max for {tonnage}-Ton'
+    elif tonnage <= 3.5:
+        elec_spec = '35A or 40A 2-Pole Breaker + 8/2 Romex'
+        elec_note = f'MOPD: 35-40A for {tonnage}-Ton'
+    else:
+        elec_spec = '50A 2-Pole Breaker + 6/2 Romex'
+        elec_note = f'MOPD: 50A for {tonnage}-Ton'
+
+    # 9. Pad sizing
+    if system_type == "furnace-only":
+        pad_spec = "None (Furnace Only)"
+        pad_note = "No outdoor pad needed"
+    elif tonnage <= 2.5:
+        pad_spec = '36" x 36" DiversiTech Composite Pad'
+        pad_note = f'Standard base for {tonnage}-Ton'
+    else:
+        pad_spec = '38" x 42" Equipment Pad + Shims'
+        pad_note = f'Large footprint for {tonnage}-Ton'
+
+    # 10. Tearout / Removal
+    has_removal = "removal of old" in text_lower or "removal" in text_lower or "tear out" in text_lower or "tearout" in text_lower
+    
+    # 11. New Lineset vs Flush
+    has_new_lines = "new refrigerant line" in text_lower or "new lineset" in text_lower or "new line" in text_lower
+    reusing_lineset = "reuse" in text_lower or "flush" in text_lower
+
+    # 12. Build Modular Equipment List
+    equipment = []
+    brand_prefix = detected_brand if detected_brand != "HVAC System" else ""
+    
+    if system_type == "furnace-only":
+        furnace_name = f"{brand_prefix} {furnace_btu} {furnace_eff} S9X1 Furnace" if "s9x1" in text_lower else f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace".strip()
+        equipment.append({
+            "id": "eq-furnace",
+            "name": furnace_name or f"{furnace_btu} {furnace_eff} Gas Furnace",
+            "qty": "1 Unit",
+            "badge": furnace_eff,
+            "desc": f"Single-stage gas furnace • {furnace_btu} input • 120V",
+            "model_search": f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace".strip()
+        })
+    elif system_type == "ac-only":
+        equipment.append({
+            "id": "eq-ac",
+            "name": f"{brand_prefix} {tonnage}-Ton Condenser ({seer})".strip(),
+            "qty": "1 Unit",
+            "badge": f"{tonnage}T Sizing",
+            "desc": f"Outdoor AC Condenser • Factory charged • {seer}",
+            "model_search": f"{brand_prefix} {tonnage}T {seer} Condenser".strip()
+        })
+        equipment.append({
+            "id": "eq-coil",
+            "name": f"{brand_prefix} {tonnage}-Ton Cased Coil".strip(),
+            "qty": "1 Unit",
+            "badge": "Factory TXV",
+            "desc": "Indoor cased evaporator coil",
+            "model_search": f"{brand_prefix} {tonnage}T Cased Coil".strip()
+        })
+    elif system_type == "heatpump":
+        equipment.append({
+            "id": "eq-hp",
+            "name": f"{brand_prefix} {tonnage}-Ton Heat Pump Condenser ({seer})".strip(),
+            "qty": "1 Unit",
+            "badge": f"{tonnage}T Heat Pump",
+            "desc": f"Inverter / Heat Pump outdoor unit • {seer}",
+            "model_search": f"{brand_prefix} {tonnage}T Heat Pump".strip()
+        })
+        if is_furnace:
+            equipment.append({
+                "id": "eq-coil",
+                "name": f"{brand_prefix} {tonnage}-Ton Cased Coil".strip(),
+                "qty": "1 Unit",
+                "badge": "Heat Pump TXV",
+                "desc": "Indoor cased coil for dual-fuel system",
+                "model_search": f"{brand_prefix} {tonnage}T Coil".strip()
+            })
+            equipment.append({
+                "id": "eq-furnace",
+                "name": f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace (Dual Fuel)".strip(),
+                "qty": "1 Unit",
+                "badge": furnace_eff,
+                "desc": "Auxiliary gas furnace backup",
+                "model_search": f"{brand_prefix} {furnace_btu} Furnace".strip()
+            })
+        else:
+            equipment.append({
+                "id": "eq-air-handler",
+                "name": f"{brand_prefix} {tonnage}-Ton Multi-Position Air Handler".strip(),
+                "qty": "1 Unit",
+                "badge": "ECM Blower",
+                "desc": "Indoor electric air handler unit",
+                "model_search": f"{brand_prefix} {tonnage}T Air Handler".strip()
+            })
+    elif system_type == "mini-split":
+        equipment.append({
+            "id": "eq-minisplit-od",
+            "name": f"{brand_prefix} {tonnage}-Ton Ductless Inverter Heat Pump".strip(),
+            "qty": "1 Unit",
+            "badge": f"{tonnage}T Inverter",
+            "desc": "Variable-speed outdoor ductless condenser",
+            "model_search": f"{brand_prefix} {tonnage}T Ductless".strip()
+        })
+        equipment.append({
+            "id": "eq-minisplit-id",
+            "name": f"{brand_prefix} High-Wall Ductless Indoor Air Handler".strip(),
+            "qty": "1 Unit",
+            "badge": "Wall Mount",
+            "desc": "Whisper-quiet indoor evaporator head + remote",
+            "model_search": f"{brand_prefix} Ductless Indoor Unit".strip()
+        })
+    else: # Full System
+        condenser_title = f"{brand_prefix} {tonnage}-Ton Condenser ({seer})".strip()
+        furnace_title = f"{brand_prefix} {furnace_btu} {furnace_eff} S9X1 Furnace" if "s9x1" in text_lower else f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace".strip()
+        coil_title = f"{brand_prefix} {tonnage}-Ton Cased Coil".strip()
+        
+        equipment.append({
+            "id": "eq-ac",
+            "name": condenser_title,
+            "qty": "1 Unit",
+            "badge": f"{tonnage}T Sizing",
+            "desc": f"Outdoor AC Condenser • Factory charged • {seer}",
+            "model_search": condenser_title
+        })
+        equipment.append({
+            "id": "eq-furnace",
+            "name": furnace_title,
+            "qty": "1 Unit",
+            "badge": furnace_eff,
+            "desc": f"Single-stage gas furnace • {furnace_btu} input",
+            "model_search": furnace_title
+        })
+        equipment.append({
+            "id": "eq-coil",
+            "name": coil_title,
+            "qty": "1 Unit",
+            "badge": "Factory TXV",
+            "desc": "Indoor cased evaporator coil",
+            "model_search": coil_title
+        })
+
+    # Subtitle build
+    sub_parts = []
+    if system_type == "furnace-only":
+        f_str = f"Furnace {furnace_btu} {furnace_eff}"
+        if "s9x1" in text_lower:
+            f_str += " S9X1"
+        sub_parts.append(f_str)
+    elif system_type == "ac-only":
+        sub_parts.append(f"AC {seer} {tonnage}-Ton")
+    elif system_type == "heatpump":
+        sub_parts.append(f"Heat Pump {seer} {tonnage}-Ton")
+        if is_furnace:
+            sub_parts.append(f"Furnace {furnace_btu} {furnace_eff}")
+    elif system_type == "mini-split":
+        sub_parts.append(f"Mini-Split {tonnage}-Ton Inverter")
+    else:
+        sub_parts.append(f"AC {seer} {tonnage}-Ton")
+        f_str = f"Furnace {furnace_btu} {furnace_eff}"
+        if "s9x1" in text_lower:
+            f_str += " S9X1"
+        sub_parts.append(f_str)
+
+    title = f"{detected_brand} {type_title}".strip() if detected_brand != "HVAC System" else type_title
+    sub = " • ".join(sub_parts) if sub_parts else f"{tonnage}-Ton System"
+
+    return {
+        "title": title,
+        "subtitle": sub,
+        "profile": system_type,
+        "brand": detected_brand,
+        "tonnage": tonnage,
+        "has_new_lines": has_new_lines,
+        "reusing_lineset": reusing_lineset,
+        "has_removal": has_removal,
+        "is_condensing_90plus": is_condensing_90plus,
+        "furnace_btu": furnace_btu,
+        "furnace_eff": furnace_eff,
+        "seer": seer,
+        "is_furnace": is_furnace,
+        "is_ac": is_ac,
+        "is_heatpump": is_heatpump,
+        "is_minisplit": is_minisplit,
+        "equipment": equipment,
+        "specs": {
+            "lineset": lineset_size,
+            "lineset_note": lineset_note,
+            "venting": venting_spec,
+            "venting_note": venting_note,
+            "electrical": elec_spec,
+            "electrical_note": elec_note,
+            "pad": pad_spec,
+            "pad_note": pad_note,
+            "drainage": '3/4" Schedule 40 PVC + SS2 Float Switch' if (is_ac or is_heatpump) else '3/4" Schedule 40 PVC Condensate Trap',
+            "drainage_note": "Furnace secondary trap + evaporator overflow protection" if (is_ac or is_heatpump) else "Furnace flue condensate trap",
+            "tearout": "Recovery Machine + A2L Tank + Appliance Dolly" if has_removal else "Standard Dolly",
+            "tearout_note": '"Removal of old equipment" specified' if has_removal else "Standard install"
+        },
+        "raw_text_preview": text[:400]
+    }

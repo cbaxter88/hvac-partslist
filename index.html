@@ -1,0 +1,2992 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Truck 4 • Smart Loadout & Bin Inventory</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#090d16">
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @supports (-webkit-touch-callout: none) {
+      .ios-scroll { -webkit-overflow-scrolling: touch; }
+    }
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
+    .pt-safe { padding-top: env(safe-area-inset-top, 8px); }
+    .spring { transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+    .spring:active { transform: scale(0.96); }
+    .sheet { transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased h-[100dvh] overflow-hidden flex flex-col selection:bg-emerald-500 selection:text-white font-sans">
+
+  <!-- ========================================================= -->
+  <!-- SLIM HEADER (48px - Screen-efficient for Mobile)           -->
+  <!-- ========================================================= -->
+  <header class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3.5 pb-2.5 shadow-md" style="padding-top: max(env(safe-area-inset-top), 16px);">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-xs font-bold tracking-tight text-white">Truck 4</h1>
+            <span class="text-[10px] text-slate-500">•</span>
+            <span id="header-active-job" class="text-xs font-semibold text-emerald-400">Job #8429 (Pitcher)</span>
+          </div>
+          <p id="header-active-equip" class="text-[10px] text-slate-400 line-clamp-1">American Standard 2.5T AC + 95% S9X1 Furnace</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-1.5">
+        <button onclick="toggleDebugOverlay()" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs flex items-center justify-center spring" title="Debug Console">
+          🐞
+        </button>
+        <button onclick="openJobberModal()" class="px-2 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 text-blue-300 hover:text-white font-bold text-[11px] flex items-center gap-1 spring">
+          <span>📲</span>
+          <span>Jobber</span>
+        </button>
+        <button onclick="openProfileModal()" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-[11px] flex items-center gap-1 spring">
+          <span id="header-profile-badge">Full Sys</span>
+          <span class="text-[9px]">⚙️</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================= -->
+  <!-- VIEW 1: TODAY'S LOADOUT (FAST MORNING EQUIPMENT PICK LIST) -->
+  <!-- ========================================================= -->
+  <div id="tab-view-loadout" class="flex-1 min-h-0 flex flex-col">
+    <!-- Progress & Action Strip -->
+    <div class="bg-slate-900/90 border-b border-slate-800 px-3.5 py-2 flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-1.5">
+          <span id="loadout-progress-text" class="text-xs font-bold text-white">0 of 0 Loaded</span>
+          <span id="loadout-progress-badge" class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400">0%</span>
+        </div>
+        <p class="text-[10px] text-slate-400">Only items to physically put on truck this morning</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="resetDayChecks()" class="text-[11px] text-slate-400 hover:text-white underline">Reset</button>
+        <button onclick="openCompleteJobModal()" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs spring shadow-sm">
+          Done Today
+        </button>
+      </div>
+    </div>
+    <div class="w-full bg-slate-800/80 h-1">
+      <div id="loadout-progress-bar" class="bg-emerald-500 h-1 transition-all duration-300" style="width: 0%;"></div>
+    </div>
+
+    <!-- Main Scrollable Loadout Feed -->
+    <main class="flex-1 overflow-y-auto ios-scroll p-3.5 space-y-3 pb-24">
+      
+      <!-- 📌 JOB-SPECIFIC PICKUPS (Added from Johnstone Receipts or Site Tags) -->
+      <div id="sec-job-specific-pickups" class="border border-purple-500/40 rounded-2xl overflow-hidden bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900">
+        <div class="px-3.5 py-2.5 bg-purple-900/30 flex items-center justify-between border-b border-purple-500/20">
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm">📌</span>
+            <span class="text-xs font-bold text-purple-200">Job-Specific Pickups (Pitcher)</span>
+            <span id="count-job-pickups" class="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 font-bold">3 items</span>
+          </div>
+          <span class="text-[10px] text-purple-300 font-mono font-semibold">$179.79 Billed</span>
+        </div>
+        <div id="group-job-pickups" class="divide-y divide-purple-500/10"></div>
+      </div>
+
+      <!-- MAJOR EQUIPMENT & SYSTEM REQUISITES -->
+      <div class="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60">
+        <div class="px-3.5 py-2 bg-slate-900 flex items-center justify-between border-b border-slate-800">
+          <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+            <span>❄️</span> Major Equipment & Sizing
+          </span>
+          <span id="count-equip" class="text-[10px] text-slate-400 font-medium"></span>
+        </div>
+        <div id="group-loadout-equipment" class="divide-y divide-slate-800/80"></div>
+      </div>
+
+      <!-- HIGH-VOLTAGE & ELECTRICAL -->
+      <div class="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60">
+        <div class="px-3.5 py-2 bg-slate-900 flex items-center justify-between border-b border-slate-800">
+          <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+            <span>⚡</span> Electrical, Breaker & Disconnect
+          </span>
+          <span id="count-electrical" class="text-[10px] text-slate-400 font-medium"></span>
+        </div>
+        <div id="group-loadout-electrical" class="divide-y divide-slate-800/80"></div>
+      </div>
+
+      <!-- REFRIGERATION & PIPING -->
+      <div class="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60">
+        <div class="px-3.5 py-2 bg-slate-900 flex items-center justify-between border-b border-slate-800">
+          <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+            <span>🧪</span> Lineset, Pad & Specialty
+          </span>
+          <span id="count-refrigeration" class="text-[10px] text-slate-400 font-medium"></span>
+        </div>
+        <div id="group-loadout-refrigeration" class="divide-y divide-slate-800/80"></div>
+      </div>
+
+      
+      <!-- 🧠 + ADD MISSING ITEM & LEARN FOR FUTURE SYSTEMS -->
+      <button onclick="openQuickAddLoadoutItemModal()" class="w-full py-2.5 px-3 rounded-2xl bg-slate-900/80 hover:bg-slate-900 border border-dashed border-slate-700 hover:border-blue-500/60 text-slate-300 hover:text-white font-bold text-xs flex items-center justify-center gap-2 spring shadow-sm">
+        <span class="text-blue-400 text-sm">+</span>
+        <span>Add Missing Item to Loadout (Wire, Pump, etc.)</span>
+        <span class="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 font-bold">Learns for Future</span>
+      </button>
+
+      <!-- SITE OBSTACLE ADD-ONS -->
+      <div id="sec-site-addons" class="hidden border border-amber-500/30 rounded-2xl overflow-hidden bg-amber-950/20">
+        <div class="px-3.5 py-2 bg-amber-900/30 flex items-center justify-between border-b border-amber-500/20">
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs">⚠️</span>
+            <span class="text-xs font-bold text-amber-300">Site Conditions Active</span>
+          </div>
+          <button onclick="clearSiteAddons()" class="text-[10px] text-amber-400 underline">Clear</button>
+        </div>
+        <div id="site-addons-container" class="divide-y divide-amber-500/10"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- VIEW 2: TRUCK BIN KITS (BIN-LEVEL STATUS, NEVER PIECE-COUNTED) -->
+  <!-- ========================================================= -->
+  <div id="tab-view-bins" class="hidden flex-1 overflow-y-auto ios-scroll p-3.5 space-y-3.5 pb-24">
+    <!-- Header Summary -->
+    <div class="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-900/80 border border-slate-800">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xs font-bold text-white uppercase tracking-wider">Truck 4 • Standard Bin Stock</h2>
+          <p class="text-[11px] text-slate-400">Tracked by Bin Status (🟢 Full / 🟡 Low / 🔴 Empty) • Never count by piece</p>
+        </div>
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">5 Kits Stocked</span>
+      </div>
+    </div>
+
+    <!-- The 5 Core Standard Kits -->
+    <div id="truck-bins-container" class="space-y-3"></div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- VIEW 3: SMART RECEIPTS & JOB COST SPLITTER                 -->
+  <!-- ========================================================= -->
+  <div id="tab-view-receipts" class="hidden flex-1 overflow-y-auto ios-scroll p-3.5 space-y-4 pb-24">
+    
+    <!-- Action Bar: Scan or Load Sample -->
+    <div class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xs font-bold text-white uppercase tracking-wider">Smart Receipt Scanner</h2>
+          <p class="text-[11px] text-slate-400">Auto-translates supply SKUs to human trade names</p>
+        </div>
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">Johnstone / Duncan</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <label class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer shadow-md spring">
+          <span>📷</span>
+          <span>Scan Invoice</span>
+          <input type="file" accept="image/*" multiple onchange="handleReceiptUpload(event)" class="hidden">
+        </label>
+        
+        <button onclick="loadJohnstoneJobSample()" class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 font-bold text-xs spring">
+          <span>⚡</span>
+          <span>Load 11/2 Job (Pitcher)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ACTIVE SCANNED INVOICE REVIEW CARD -->
+    <div id="scanned-receipt-review" class="hidden border border-emerald-500/30 rounded-2xl overflow-hidden bg-slate-900 shadow-xl">
+      <div class="px-3.5 py-2.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between">
+        <div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs font-bold text-emerald-300" id="review-supplier">Johnstone Supply</span>
+            <span class="text-[10px] px-1.5 py-0.2 rounded font-mono bg-emerald-500/20 text-emerald-300" id="review-inv-num">#68214078.002</span>
+          </div>
+          <span class="text-[10px] text-slate-400" id="review-po-job">PO / Job: PITCHER • 3 Pages</span>
+        </div>
+        <div class="text-right">
+          <span class="text-sm font-bold text-white font-mono" id="review-total-cost">$370.37</span>
+          <span class="block text-[9px] text-emerald-400">Total Billed</span>
+        </div>
+      </div>
+
+      <div class="p-3 space-y-3">
+        <!-- Explanatory split banner -->
+        <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-300">
+          💡 <span class="font-bold text-white">Smart Split:</span> Materials custom to the Pitcher job are tagged for job costing & loadout. Standard fittings automatically replenish your Truck Bins without cluttering your master catalog!
+        </div>
+
+        <!-- Section A: Job-Specific Materials ($179.79) -->
+        <div class="rounded-xl border border-purple-500/30 overflow-hidden bg-purple-950/20">
+          <div class="px-3 py-1.5 bg-purple-900/40 flex items-center justify-between border-b border-purple-500/20">
+            <span class="text-[11px] font-bold text-purple-200 flex items-center gap-1">
+              <span>📌</span> Job-Specific Transitions & Ductwork (Pitcher)
+            </span>
+            <span class="text-[10px] font-mono font-bold text-purple-300" id="review-job-total">$179.79</span>
+          </div>
+          <div id="review-job-items-list" class="divide-y divide-purple-500/10"></div>
+        </div>
+
+        <!-- Section B: Truck Bin Replenishments -->
+        <div class="rounded-xl border border-blue-500/30 overflow-hidden bg-blue-950/20">
+          <div class="px-3 py-1.5 bg-blue-900/40 flex items-center justify-between border-b border-blue-500/20">
+            <span class="text-[11px] font-bold text-blue-200 flex items-center gap-1">
+              <span>🚚</span> Restocking Standard Truck Bins
+            </span>
+            <span class="text-[10px] font-mono font-bold text-blue-300" id="review-truck-total">15 Items Restocked</span>
+          </div>
+          <div id="review-truck-items-list" class="divide-y divide-blue-500/10 max-h-56 overflow-y-auto ios-scroll"></div>
+        </div>
+
+        <!-- Commit Button -->
+        <button onclick="commitSmartReceipt()" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg spring">
+          <span>📥</span>
+          <span>Apply: Add Transitions to Loadout & Restock Truck Bins</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- PAST INVOICE HISTORY -->
+    <div class="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60">
+      <div class="px-3.5 py-2.5 bg-slate-900 flex items-center justify-between border-b border-slate-800">
+        <span class="text-xs font-bold text-slate-200">Past Supply Runs & Invoices</span>
+        <span id="receipt-history-count" class="text-[10px] text-slate-400"></span>
+      </div>
+      <div id="receipts-history-list" class="divide-y divide-slate-800/80"></div>
+    </div>
+
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- VIEW 4: MASTER TRUCK CATALOG & PACKAGE PHOTO REFERENCE     -->
+  <!-- ========================================================= -->
+  <div id="tab-view-catalog" class="hidden flex-1 overflow-y-auto ios-scroll p-3.5 space-y-4 pb-24">
+    <div class="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2.5">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xs font-bold text-white uppercase tracking-wider">Truck 4 Master Catalog</h2>
+          <p class="text-[11px] text-slate-400">Tap any part for real packaging photo & supply counter slang</p>
+        </div>
+        <button onclick="openAddCustomItemModal('general')" class="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs spring shadow-sm">
+          + Add Part
+        </button>
+      </div>
+
+      <!-- Search Input -->
+      <div class="relative">
+        <input type="text" id="catalog-search-input" oninput="renderCatalogManager()" placeholder="Search part name, SKU, or trade size..." class="w-full px-3 py-2 pl-8 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500">
+        <span class="absolute left-2.5 top-2.5 text-xs text-slate-500">🔍</span>
+      </div>
+    </div>
+
+    <div class="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60">
+      <div id="catalog-manager-container" class="divide-y divide-slate-800/80"></div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- FIXED BOTTOM NAVIGATION BAR (iOS Native Style)             -->
+  <!-- ========================================================= -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-3 pt-2 pb-safe">
+    <div class="grid grid-cols-4 gap-1 max-w-md mx-auto text-[10px]">
+      <button onclick="switchAppTab('loadout')" id="nav-btn-loadout" class="py-1.5 flex flex-col items-center gap-0.5 rounded-xl font-bold text-emerald-400 bg-slate-800/80">
+        <span class="text-base">📋</span>
+        <span>Loadout</span>
+      </button>
+      <button onclick="switchAppTab('bins')" id="nav-btn-bins" class="py-1.5 flex flex-col items-center gap-0.5 rounded-xl font-medium text-slate-400 hover:text-slate-200">
+        <span class="text-base">🚚</span>
+        <span>Truck Bins</span>
+      </button>
+      <button onclick="switchAppTab('receipts')" id="nav-btn-receipts" class="py-1.5 flex flex-col items-center gap-0.5 rounded-xl font-medium text-slate-400 hover:text-slate-200 relative">
+        <span class="text-base">🧾</span>
+        <span>Receipts</span>
+        <span id="nav-receipt-dot" class="hidden absolute top-1 right-5 w-2 h-2 rounded-full bg-blue-500"></span>
+      </button>
+      <button onclick="switchAppTab('catalog')" id="nav-btn-catalog" class="py-1.5 flex flex-col items-center gap-0.5 rounded-xl font-medium text-slate-400 hover:text-slate-200">
+        <span class="text-base">📦</span>
+        <span>Catalog</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: REALISTIC PACKAGE INSPECTOR & PHOTO UPDATER        -->
+  <!-- ========================================================= -->
+  <div id="modal-inspector" class="sheet fixed inset-0 bg-black/80 z-50 flex flex-col justify-end opacity-0 pointer-events-none">
+    <div onclick="closeInspector()" class="flex-1"></div>
+    <div class="bg-slate-900 border-t border-slate-800 rounded-t-[28px] p-5 shadow-2xl max-h-[92%] overflow-y-auto ios-scroll pb-safe">
+      <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-3"></div>
+      
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="flex items-center gap-1.5">
+            <span id="inspect-tag" class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">Category</span>
+            <span id="inspect-bin-badge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Bin E1</span>
+          </div>
+          <h3 id="inspect-title" class="text-base font-bold text-white mt-1">Part Name</h3>
+        </div>
+        <button onclick="closeInspector()" class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <!-- REALISTIC PACKAGING CARD -->
+      <div class="w-full rounded-2xl bg-slate-950 border border-slate-800 p-4 mb-3 flex flex-col items-center relative overflow-hidden">
+        
+        <!-- Live Real Truck Photo or Trade Package Mockup -->
+        <div id="inspect-photo-display" class="w-full h-44 flex items-center justify-center mb-2 rounded-xl bg-slate-900/80 border border-slate-800/80 overflow-hidden relative">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <div id="inspect-visual-caption" class="text-xs font-semibold text-slate-200 text-center"></div>
+        <div id="inspect-packaging-notes" class="text-[11px] text-slate-400 text-center mt-0.5"></div>
+
+        <!-- 📸 Live Camera Capture / Upload Button -->
+        <div class="mt-3 flex items-center gap-2">
+          <label class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer spring shadow-sm">
+            <span>📸</span>
+            <span id="inspect-camera-btn-text">Snap Real Truck Photo</span>
+            <input type="file" id="inspect-photo-input" accept="image/*" capture="environment" onchange="handleInspectCustomPhoto(event)" class="hidden">
+          </label>
+          <button id="inspect-reset-photo-btn" onclick="resetInspectCustomPhoto()" class="hidden px-2.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold spring">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- SUPPLY HOUSE COUNTER CHEAT SHEET -->
+      <div class="p-3.5 rounded-2xl bg-blue-950/20 border border-blue-500/30 mb-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 text-xs font-bold text-blue-400">
+            <span>🏪</span>
+            <span>Johnstone & Duncan Counter Cheatsheet</span>
+          </div>
+          <span class="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-bold">Counter Rep</span>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 block">Say this at the counter:</span>
+          <span id="inspect-counter-say" class="font-semibold text-white font-mono bg-slate-900 px-2 py-1 rounded block mt-0.5 border border-slate-800 text-xs"></span>
+        </div>
+        <div>
+          <span class="text-[10px] uppercase font-bold text-slate-400 block">Exact Supply SKUs:</span>
+          <span id="inspect-brands" class="text-slate-300 font-medium block mt-0.5 text-xs"></span>
+        </div>
+      </div>
+
+      <!-- Specs & Gotchas -->
+      <div class="space-y-2 mb-4">
+        <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Where It Goes</span>
+          <p id="inspect-connect" class="text-xs text-slate-200 mt-0.5 font-medium"></p>
+        </div>
+
+        <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+          <div class="flex items-center gap-1.5 font-bold text-xs mb-0.5">
+            <span>⚠️</span>
+            <span>Field Gotcha</span>
+          </div>
+          <p id="inspect-gotcha" class="text-xs text-amber-300 font-medium"></p>
+        </div>
+      </div>
+
+      <!-- REMOVE FROM LOADOUT / OBSOLETE ACTIONS -->
+      <div class="space-y-2 pt-2 border-t border-slate-800 mb-3">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Manage Loadout Inclusion:</span>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="removeCurrentItemFromLoadout(false)" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white font-bold text-xs spring flex items-center justify-center gap-1.5">
+            <span>✕</span>
+            <span>Remove for Today</span>
+          </button>
+          <button type="button" onclick="removeCurrentItemFromLoadout(true)" class="py-2.5 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 hover:text-white font-bold text-xs spring flex items-center justify-center gap-1.5">
+            <span>🚫</span>
+            <span>Never Show Again</span>
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-500 text-center">"Never Show Again" marks obsolete parts you don't use. Restore anytime in Catalog.</p>
+      </div>
+
+      <button onclick="closeInspector()" class="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white font-semibold text-xs spring">
+        Close Inspector
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: PROFILE & CONDITIONS SELECTOR                      -->
+  <!-- ========================================================= -->
+  <div id="modal-profile" class="sheet fixed inset-0 bg-black/80 z-50 flex flex-col justify-end opacity-0 pointer-events-none">
+    <div onclick="closeProfileModal()" class="flex-1"></div>
+    <div class="bg-slate-900 border-t border-slate-800 rounded-t-[28px] p-5 shadow-2xl max-h-[85%] overflow-y-auto ios-scroll pb-safe">
+      <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-3"></div>
+      
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-bold text-white">System Profile & Site Conditions</h3>
+        <button onclick="closeProfileModal()" class="w-7 h-7 rounded-full bg-slate-800 text-xs text-slate-400">✕</button>
+      </div>
+
+      <div class="space-y-2 mb-4">
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Installing Today:</span>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button onclick="selectProfile('full-system')" id="pbtn-full-system" class="p-2.5 rounded-xl border border-emerald-500 bg-emerald-600 text-white font-bold text-left">
+            🔥❄️ Full System (AC + Gas)
+          </button>
+          <button onclick="selectProfile('mini-split')" id="pbtn-mini-split" class="p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 font-semibold text-left">
+            🌀 Mini-Split
+          </button>
+          <button onclick="selectProfile('ac-only')" id="pbtn-ac-only" class="p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 font-semibold text-left">
+            ❄️ AC Only
+          </button>
+          <button onclick="selectProfile('furnace-only')" id="pbtn-furnace-only" class="p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 font-semibold text-left">
+            🔥 Furnace Only
+          </button>
+          <button onclick="selectProfile('heatpump')" id="pbtn-heatpump" class="p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 font-semibold text-left">
+            ⚡ Heat Pump
+          </button>
+        </div>
+      </div>
+
+      <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5 mb-4 text-xs">
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Site Conditions:</span>
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="text-slate-200">Running New Circuit (Add Breaker & Romex)</span>
+          <input type="checkbox" id="cond-new-circuit" checked onchange="toggleNewCircuit(this.checked)" class="w-4 h-4 accent-emerald-500 rounded">
+        </label>
+        <label class="flex items-center justify-between cursor-pointer">
+          <span class="text-slate-200">Reusing Existing Line Set (Add Rx11 Flush)</span>
+          <input type="checkbox" id="cond-reusing-lineset" onchange="toggleReusingLineset(this.checked)" class="w-4 h-4 accent-emerald-500 rounded">
+        </label>
+      </div>
+
+      <button onclick="closeProfileModal()" class="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-xs spring">
+        Done
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: JOBBER OCR / TEXT SYNC                             -->
+  <!-- ========================================================= -->
+  <!-- ========================================================= -->
+  <!-- MODAL: JOBBER OCR / TEXT SYNC WITH CONFIRMATION CARD      -->
+  <!-- ========================================================= -->
+  <div id="modal-jobber" class="sheet fixed inset-0 bg-black/80 z-50 flex flex-col justify-end opacity-0 pointer-events-none">
+    <div onclick="closeJobberModal()" class="flex-1"></div>
+    <div class="bg-slate-900 border-t border-blue-500/40 rounded-t-[28px] p-5 shadow-2xl max-h-[92%] overflow-y-auto ios-scroll pb-safe">
+      <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-3"></div>
+      
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Automated Sizing Pipeline</span>
+          <h3 class="text-sm font-bold text-white">Sync Jobber Work Order</h3>
+        </div>
+        <button onclick="closeJobberModal()" class="w-7 h-7 rounded-full bg-slate-800 text-xs text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 mb-3">
+        <label class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer spring shadow-md">
+          <span>📷</span>
+          <span>Upload Screenshot</span>
+          <input type="file" accept="image/*" onchange="handleJobberImageUpload(event)" class="hidden">
+        </label>
+        <button onclick="loadSampleJobberScreenshot()" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs spring">
+          ⚡ American Standard (Pitcher)
+        </button>
+      </div>
+
+      <!-- Live OCR / Status indicator -->
+      <div id="jobber-scan-status" class="hidden p-2 rounded-xl bg-blue-950/60 border border-blue-500/30 text-blue-300 text-xs flex items-center justify-center gap-2 mb-3 animate-pulse">
+        <span>🔍</span>
+        <span>Analyzing Jobber Line Items with Vision OCR...</span>
+      </div>
+
+      <!-- RECIPE CONFIRMATION CARD (PREVIEW BEFORE APPLYING) -->
+      <div id="jobber-recipe-card" class="border border-blue-500/40 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-950/40 via-slate-900 to-slate-900 p-3.5 space-y-3 mb-3">
+        <div class="flex items-center justify-between border-b border-blue-500/20 pb-2">
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-black text-white" id="jcard-title">American Standard Full System</span>
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/20 text-blue-300">Detected</span>
+            </div>
+            <p class="text-[10px] text-slate-300 mt-0.5" id="jcard-sub">AC 13-SEER2 2.5-Ton • Furnace 60k 95% S9X1</p>
+          </div>
+          <span class="text-xl">📋</span>
+        </div>
+
+        <div class="space-y-1.5 text-xs">
+          <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-300">❄️ Lineset Copper</span>
+            <span class="font-bold text-blue-400 font-mono text-[11px]" id="jcard-lineset">3/8" x 3/4" x 50ft (2.5T Sizing)</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-300">⚡ Electrical MOPD</span>
+            <span class="font-bold text-amber-400 font-mono text-[11px]" id="jcard-elec">30A 2P Breaker + 30A Fuses</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-300">🔥 Flue Venting</span>
+            <span class="font-bold text-emerald-400 font-mono text-[11px]" id="jcard-vent">2" Sch 40 PVC (95% Condensing)</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-300">🧊 Condenser Base</span>
+            <span class="font-bold text-purple-300 font-mono text-[11px]" id="jcard-pad">36" x 36" Pad (2.5T Base)</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <span class="text-slate-300">🚚 Scope Triggers</span>
+            <span class="font-semibold text-slate-200 text-[10px]" id="jcard-scope">New Lines (No Flush) • Tearout Added</span>
+          </div>
+        </div>
+
+        <button onclick="applyJobberRecipeToLoadout()" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg spring">
+          <span>✅</span>
+          <span>Apply Recipe to Today's Loadout</span>
+        </button>
+      </div>
+
+      <div class="text-[11px] text-slate-400 pt-1">
+        <details class="cursor-pointer">
+          <summary class="hover:text-slate-200 text-[10px] text-slate-500">Manual Work Order Text Backup (Tap to expand)</summary>
+          <textarea id="jobber-raw-text" rows="3" placeholder="Or paste Jobber line items text here..." class="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 outline-none focus:border-blue-500 font-mono mt-2"></textarea>
+          <button onclick="parseJobberTextManual()" class="w-full mt-2 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs spring">
+            Parse Raw Text
+          </button>
+        </details>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: EQUIPMENT SPECS & INSTALLATION MANUAL (PDF)        -->
+  <!-- ========================================================= -->
+  <div id="modal-equipment-specs" class="sheet fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col justify-end opacity-0 pointer-events-none transition-all duration-300">
+    <div onclick="closeEquipmentSpecsModal()" class="flex-1"></div>
+    <div class="bg-slate-900 border-t border-slate-800 rounded-t-[32px] p-5 shadow-2xl max-h-[90%] overflow-y-auto ios-scroll pb-safe">
+      <div class="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-4"></div>
+      
+      <!-- Header -->
+      <div class="flex items-start justify-between mb-4 border-b border-slate-800/80 pb-3">
+        <div class="flex-1 pr-3">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30" id="spec-modal-brand">Brand</span>
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-slate-300" id="spec-modal-cat">Category</span>
+          </div>
+          <h3 class="text-base font-black text-white leading-tight" id="spec-modal-title">Equipment Model</h3>
+          <p class="text-[11px] text-slate-400 mt-0.5" id="spec-modal-sub">Factory Technical Specs & Installation Guide</p>
+        </div>
+        <button onclick="closeEquipmentSpecsModal()" class="w-8 h-8 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-sm hover:text-white spring">✕</button>
+      </div>
+
+      <!-- Model Input & Camera Scan Bar -->
+      <div class="mb-4 p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold text-slate-200">🔍 Pull Official Specs & Manual</span>
+          <span id="spec-scan-spinner" class="hidden text-[10px] text-blue-400 font-bold animate-pulse">📷 Scanning Plate with OCR...</span>
+        </div>
+
+        <!-- Manual Model Type & Search -->
+        <div class="flex items-center gap-2">
+          <input type="text" id="spec-custom-search-input" placeholder="Type Model # (e.g. 4A7A4030, S9X1, BOVA-36)" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500 font-mono outline-none focus:border-blue-500">
+          <button onclick="fetchSpecsForManualInput()" class="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs spring flex-shrink-0 flex items-center gap-1.5 shadow-md shadow-blue-900/40">
+            <span>🔍</span>
+            <span>Search</span>
+          </button>
+        </div>
+
+        <!-- Camera Button to Snap Rating Plate or Box Code -->
+        <div class="flex items-center gap-2">
+          <label class="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer spring shadow">
+            <span class="text-sm">📷</span>
+            <span>Snap Rating Plate / Box Code</span>
+            <input type="file" accept="image/*" capture="environment" onchange="handleModelPlatePhotoUpload(event)" class="hidden">
+          </label>
+        </div>
+
+        <!-- Attached Data Plate Photo Preview Thumbnail (if captured) -->
+        <div id="spec-plate-photo-preview" class="hidden p-2 rounded-xl bg-slate-900/90 border border-slate-700/80 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <img id="spec-plate-thumb" src="" alt="Data Plate" class="w-12 h-12 object-cover rounded-lg border border-slate-600">
+            <div>
+              <span class="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                <span>✓</span>
+                <span>Rating Plate Attached</span>
+              </span>
+              <span id="spec-plate-ocr-model" class="text-[11px] font-mono font-bold text-white block mt-0.5"></span>
+            </div>
+          </div>
+          <button onclick="clearModelPlatePhoto()" class="text-xs text-slate-400 hover:text-red-400 font-bold p-1">✕</button>
+        </div>
+      </div>
+
+      <!-- Action: Open Official Manual PDF -->
+      <div class="mb-4">
+        <a id="spec-modal-pdf-btn" href="#" target="_blank" rel="noopener noreferrer" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-950/40 spring">
+          <span class="text-base">📖</span>
+          <span id="spec-modal-pdf-label">Open Official Install Manual (PDF)</span>
+          <span class="text-xs opacity-75">↗</span>
+        </a>
+      </div>
+
+      <!-- Spec Cards Grid -->
+      <div class="space-y-2.5 mb-2 text-xs">
+        <!-- Electrical / MOPD -->
+        <div class="p-3 rounded-2xl bg-slate-950/80 border border-slate-800">
+          <div class="flex items-center gap-2 text-amber-400 font-bold text-[11px] mb-1.5">
+            <span>⚡</span>
+            <span>ELECTRICAL (MOPD & MCA)</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[11px]">
+            <div>
+              <span class="text-slate-400 block text-[10px]">Max Overcurrent (MOPD):</span>
+              <span class="font-bold text-slate-100 font-mono" id="spec-modal-mopd">30A Max</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-[10px]">Min Circuit Ampacity (MCA):</span>
+              <span class="font-bold text-slate-100 font-mono" id="spec-modal-mca">18.2A</span>
+            </div>
+            <div class="col-span-2 pt-1 border-t border-slate-900">
+              <span class="text-slate-400 block text-[10px]">Supply Branch Protection:</span>
+              <span class="font-semibold text-slate-300" id="spec-modal-elec">Square D HOM230 + 10/2 Romex</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Refrigeration / Lineset & Charge -->
+        <div id="spec-box-refrig" class="p-3 rounded-2xl bg-slate-950/80 border border-slate-800">
+          <div class="flex items-center gap-2 text-blue-400 font-bold text-[11px] mb-1.5">
+            <span>❄️</span>
+            <span>REFRIGERATION & LINESET SIZING</span>
+          </div>
+          <div class="space-y-1 text-[11px]">
+            <div class="flex items-center justify-between">
+              <span class="text-slate-400">Copper Lineset:</span>
+              <span class="font-bold text-blue-300 font-mono" id="spec-modal-lineset">3/8" Liquid x 3/4" Suction</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-slate-400">Factory Pre-Charge / Subcooling:</span>
+              <span class="font-semibold text-slate-200" id="spec-modal-charge">10°F Target Subcooling</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Combustion Venting & Drainage -->
+        <div id="spec-box-vent" class="p-3 rounded-2xl bg-slate-950/80 border border-slate-800">
+          <div class="flex items-center gap-2 text-emerald-400 font-bold text-[11px] mb-1.5">
+            <span>🔥</span>
+            <span>COMBUSTION VENTING & DRAINAGE</span>
+          </div>
+          <div class="space-y-1 text-[11px]">
+            <div>
+              <span class="text-slate-400 block text-[10px]">Flue Pipe Specification:</span>
+              <span class="font-semibold text-slate-100" id="spec-modal-vent">2" Sch 40 PVC (Max 60ft equivalent)</span>
+            </div>
+            <div class="pt-1">
+              <span class="text-slate-400 block text-[10px]">Condensate Trap & Safety:</span>
+              <span class="font-semibold text-slate-300" id="spec-modal-drain">3/4" PVC Trap + Float Switch</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Blower CFM & Dip Switch Notes -->
+        <div class="p-3 rounded-2xl bg-slate-950/80 border border-slate-800">
+          <div class="flex items-center gap-2 text-purple-400 font-bold text-[11px] mb-1.5">
+            <span>💨</span>
+            <span>BLOWER CFM & DIP SWITCH SETUP</span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed" id="spec-modal-blower">
+            Set cooling speed tap to 400 CFM per ton. Refer to board diagram on blower compartment door for heating temp rise CFM.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: DONE TODAY / LEFTOVER TRACKER                      -->
+  <!-- ========================================================= -->
+  <div id="modal-leftover" class="sheet fixed inset-0 bg-black/80 z-50 flex flex-col justify-end opacity-0 pointer-events-none">
+    <div onclick="closeCompleteJobModal()" class="flex-1"></div>
+    <div class="bg-slate-900 border-t border-slate-800 rounded-t-[28px] p-5 shadow-2xl max-h-[85%] overflow-y-auto ios-scroll pb-safe">
+      <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-3"></div>
+      <h3 class="text-sm font-bold text-white mb-1">Wrap Up: Mark Job Complete</h3>
+      <p class="text-[11px] text-slate-400 mb-3">Did you return any major parts unused to the truck?</p>
+      <div id="leftover-items-list" class="space-y-2 mb-4"></div>
+      <button onclick="finalizeJobWrapUp()" class="w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-xs spring">
+        Confirm & Reset Loadout
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- JAVASCRIPT APPLICATION LOGIC                              -->
+  <!-- ========================================================= -->
+  <script>
+
+    // --- TELEMETRY & LIVE MOBILE DEBUGGER ---
+    const TELEMETRY_URL = '/api/telemetry';
+    let localDebugLogs = [];
+
+    function sendTelemetry(level, event, data = {}) {
+      const time = new Date().toLocaleTimeString();
+      localDebugLogs.unshift({ time, level, event, data });
+      if (localDebugLogs.length > 50) localDebugLogs.pop();
+      renderOnScreenLogs();
+
+      try {
+        fetch(TELEMETRY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ level, event, data }),
+          keepalive: true
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    // Capture mobile errors and send to Mac server
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      sendTelemetry('ERROR', 'UNCAUGHT_EXCEPTION', { msg, line: lineNo, col: columnNo, stack: error ? error.stack : '' });
+      return false;
+    };
+    window.addEventListener('unhandledrejection', function(event) {
+      sendTelemetry('ERROR', 'PROMISE_REJECTION', { reason: String(event.reason) });
+    });
+
+    function toggleDebugOverlay() {
+      const overlay = document.getElementById('debug-mobile-overlay');
+      if (overlay) overlay.classList.toggle('hidden');
+    }
+
+    function renderOnScreenLogs() {
+      const list = document.getElementById('debug-log-list');
+      if (!list) return;
+      list.innerHTML = localDebugLogs.slice(0, 15).map(l => 
+        `<div class="text-[10px] border-b border-slate-800 py-1 font-mono ${l.level === 'ERROR' ? 'text-red-400' : 'text-slate-300'}">
+          <span class="text-slate-500">[${l.time}]</span> <span class="font-bold ${l.level === 'ERROR' ? 'text-red-300' : 'text-blue-400'}">${l.event}</span>: ${JSON.stringify(l.data)}
+        </div>`
+      ).join('');
+    }
+
+    // --- 1. CORE CATALOG DEFINITIONS WITH REALISTIC PACKAGING ---
+    const DEFAULT_PARTS_CATALOG = {
+      'breaker-2pole': {
+        id: 'breaker-2pole',
+        name: '2-Pole Circuit Breaker (30A or 40A)',
+        qty: '1 Breaker',
+        group: 'electrical',
+        tag: 'Electrical Panel',
+        shelfLocation: 'Bin E1 (High Voltage)',
+        pkgType: 'Molded Clamshell Package',
+        desc: 'Square D Homeline (HOM230) or Siemens Q230',
+        counterSay: '"Box of 30-amp 2-pole Homelines (HOM230) or Siemens Q230"',
+        brands: 'Johnstone: B18-120 | Duncan: Siemens Q230 / Eaton BR230',
+        pkgNotes: 'Black molded case breaker with dual-connected toggle handles stamped "30" in white. Sealed in plastic clamshell.',
+        connect: 'Snaps into main service panel to supply 240V branch circuit.',
+        gotcha: 'Always match breaker brand to panel busbar. Never force a Square D HOM into a Siemens panel.',
+        profiles: ['full-system', 'mini-split', 'ac-only', 'heatpump'],
+        boxColor: '#1e293b',
+        accentColor: '#dc2626',
+        badgeText: 'HOM230 30A'
+      },
+      'romex-wire': {
+        id: 'romex-wire',
+        name: '10/2 with Ground Romex NM-B Cable (Orange)',
+        qty: '50ft Coil',
+        group: 'electrical',
+        tag: 'Branch Circuit',
+        shelfLocation: 'Under Bench Spool Rack',
+        pkgType: 'Coil Spool / Shrink-wrapped Roll',
+        desc: 'Southwire Romex Simpull 10 AWG 2-conductor copper wire',
+        counterSay: '"250-foot coil or 50ft shrink-wrap of 10/2 Orange Romex"',
+        brands: 'Johnstone: W12-102 | Duncan: Southwire 10/2 NM-B',
+        pkgNotes: 'Distinctive bright safety orange outer PVC jacket with clear lettering "10 AWG 2 WITH GROUND".',
+        connect: 'Runs from electrical panel breaker to outdoor disconnect box.',
+        gotcha: 'Use 10/2 for up to 30A MOPD. For 35A-40A units, step up to 8/2 Romex (black jacket).',
+        profiles: ['full-system', 'mini-split', 'ac-only', 'heatpump'],
+        boxColor: '#ea580c',
+        accentColor: '#ffffff',
+        badgeText: '10/2 NM-B'
+      },
+      'disconnect': {
+        id: 'disconnect',
+        name: '60A Non-Fused Disconnect Box (NEMA 3R)',
+        qty: '1 Enclosure',
+        group: 'electrical',
+        tag: 'High Voltage',
+        shelfLocation: 'Bin E2 (High Voltage)',
+        pkgType: 'Heavy Cardboard Box',
+        desc: 'DiversiTech DDS-60U or MARS 80315 metal outdoor pullout switch',
+        counterSay: '"DiversiTech 60-amp non-fused outdoor disconnect (DDS-60U)"',
+        brands: 'Johnstone: B12-882 | Duncan: DiversiTech DDS-60U',
+        pkgNotes: 'Powder-coated grey steel enclosure with front swing door and yellow pullout handle in DiversiTech retail box.',
+        connect: 'Exterior wall within sight of outdoor condenser.',
+        gotcha: 'Always insert pullout handle in ON direction and double-check continuity before leaving.',
+        profiles: ['full-system', 'mini-split', 'ac-only', 'heatpump'],
+        boxColor: '#475569',
+        accentColor: '#eab308',
+        badgeText: 'DDS-60U 60A'
+      },
+      'whip': {
+        id: 'whip',
+        name: '1/2" x 6ft Liquid-Tight Electrical Whip',
+        qty: '1 Assembly',
+        group: 'electrical',
+        tag: 'High Voltage',
+        shelfLocation: 'Bin E3 (Whips & Conduit)',
+        pkgType: 'Clear Poly Bag with Header Card',
+        desc: 'DiversiTech 6-ft metallic conduit with 90° & straight connectors pre-wired',
+        counterSay: '"1/2-inch by 6-foot liquid-tight whip kit (with 8/10 AWG THHN)"',
+        brands: 'Johnstone: B12-850 | Duncan: DiversiTech 6-12-6NM',
+        pkgNotes: 'Black corrugated flexible conduit with 3 THHN wires and pre-installed die-cast fittings in clear sleeve.',
+        connect: 'Runs from outdoor disconnect box into condenser electrical panel.',
+        gotcha: 'Ensure rubber O-ring gasket is firmly seated on the 90° fitting to prevent water intrusion.',
+        profiles: ['full-system', 'mini-split', 'ac-only', 'heatpump'],
+        boxColor: '#334155',
+        accentColor: '#38bdf8',
+        badgeText: '1/2" x 6FT WHIP'
+      },
+      'fuses': {
+        id: 'fuses',
+        name: '30A RK5 Dual-Element Time-Delay Fuses',
+        qty: '2 Fuses',
+        group: 'electrical',
+        tag: 'Protection',
+        shelfLocation: 'Bin E1 (Fuses & Breakers)',
+        pkgType: 'Cardboard Blister Card / Pack of 2',
+        desc: 'Bussmann FRN-R-30 or Littelfuse FLNR-30 dual element',
+        counterSay: '"Pair of Bussmann 30-amp RK5 time-delay dual-element fuses (FRN-R-30)"',
+        brands: 'Johnstone: B11-330 | Duncan: Bussmann FRN-R-30',
+        pkgNotes: 'Green/yellow cardboard card with brass ferrule cartridge fuses stamped 30A.',
+        connect: 'Inside outdoor fused disconnect box.',
+        gotcha: 'NEVER use fast-acting fuses on compressor circuits; inrush current will blow them instantly.',
+        profiles: ['full-system', 'ac-only', 'heatpump'],
+        boxColor: '#15803d',
+        accentColor: '#eab308',
+        badgeText: 'FRN-R 30A'
+      },
+      'lineset': {
+        id: 'lineset',
+        name: '3/8" x 3/4" Lineset (50ft UV Insulated)',
+        qty: '1 Coil',
+        group: 'refrigeration',
+        tag: 'Piping',
+        shelfLocation: 'Van Overhead Rack',
+        pkgType: 'Large Square Cardboard Box',
+        desc: 'DiversiTech DuraGuard or Mueller Streamline pre-insulated copper (Matched to 2.5 Ton)',
+        counterSay: '"50-foot 3/8 by 3/4 pre-insulated copper line set (black UV jacket)"',
+        brands: 'Johnstone: B16-120 | Duncan: DiversiTech DuraGuard',
+        pkgNotes: 'Large boxed circular coil with sealed plastic caps over copper ends.',
+        connect: 'Connects indoor cased coil to outdoor condensing unit.',
+        gotcha: 'Never kink the suction line when unrolling. Check flare nuts on mini-split ends.',
+        profiles: ['full-system', 'mini-split', 'ac-only', 'heatpump'],
+        boxColor: '#0f172a',
+        accentColor: '#b45309',
+        badgeText: '3/8 x 3/4 x 50FT'
+      },
+      'condenser-pad': {
+        id: 'condenser-pad',
+        name: '36" x 36" Equipment Pad (Ultralite)',
+        qty: '1 Pad',
+        group: 'refrigeration',
+        tag: 'Base',
+        shelfLocation: 'Van Rear Wall',
+        pkgType: 'Heavy Composite Pad with Label Wrap',
+        desc: 'DiversiTech Ultralite lightweight concrete/foam composite pad',
+        counterSay: '"DiversiTech 36 by 36 3-inch Ultralite pad (UC3636-3)"',
+        brands: 'Johnstone: B14-360 | Duncan: DiversiTech UC3636-3',
+        pkgNotes: 'Grey textured composite slab with blue and white DiversiTech label band.',
+        connect: 'Provides level foundation for outdoor condensing unit.',
+        gotcha: 'Ensure ground is firmly tamped and pitched slightly away from foundation.',
+        profiles: ['full-system', 'mini-split', 'ac-only', 'heatpump'],
+        boxColor: '#64748b',
+        accentColor: '#38bdf8',
+        badgeText: '36x36 ULTRALITE'
+      },
+      'safet-switch': {
+        id: 'safet-switch',
+        name: 'Safe-T Switch SS2 Inline Drain Switch',
+        qty: '1 Switch',
+        group: 'refrigeration',
+        tag: 'Safety Sensor',
+        shelfLocation: 'Bin P2 (Float Switches & PVC)',
+        pkgType: 'Red & White Retail Box',
+        desc: 'RectorSeal Safe-T Switch SS2 electronic inline condensate cutoff',
+        counterSay: '"RectorSeal Safe-T-Switch SS2 for auxiliary drain pan port"',
+        brands: 'Johnstone: S84-120 | Duncan: RectorSeal 97637',
+        pkgNotes: 'Red/white cardboard box containing clear PVC tee assembly with pre-wired magnetic reed switch.',
+        connect: 'Threads into auxiliary drain port of evaporator coil.',
+        gotcha: 'Wire in series with 24V R or Y wire so compressor cuts off before drain pan overflows.',
+        profiles: ['full-system', 'ac-only', 'heatpump'],
+        boxColor: '#dc2626',
+        accentColor: '#ffffff',
+        badgeText: 'SAFE-T SS2'
+      }
+    };
+
+    // --- 2. STANDARD TRUCK BINS DEFINITION ---
+    // --- 2. STRUCTURED TRUCK BINS (ITEM-LEVEL STATUS & RECEIPT LINKING) ---
+    const STANDARD_TRUCK_BINS = [
+      {
+        id: 'bin-gas-piping',
+        name: 'Gas Piping (1/2" Black Iron)',
+        icon: '🧰',
+        location: 'Bench Tray 1',
+        desc: '1/2" malleable fittings, nipples, unions & gas flex',
+        items: [
+          { id: 'gas-elbow-90', name: '1/2" Black Iron 90° Elbow', sku: 'SW0102J / 312E90-12', stdPack: '5-pack', status: 'stocked', lastRestocked: 'Nov 2 (+5 Johnstone)', counterSay: 'Pack of 1/2-inch black iron 90s (312E90)' },
+          { id: 'gas-coupling', name: '1/2" Black Iron Banded Coupling', sku: 'SW0102I / 312CO-12', stdPack: '5-pack', status: 'stocked', lastRestocked: 'Nov 2 (+5 Johnstone)', counterSay: 'Pack of 1/2-inch banded couplings' },
+          { id: 'gas-cap', name: '1/2" Black Iron Pipe Cap', sku: 'SW0102I / 310CA-12', stdPack: '5-pack', status: 'stocked', lastRestocked: 'Nov 2 (+5 Johnstone)', counterSay: 'Pack of 1/2-inch black iron pipe caps' },
+          { id: 'gas-tee', name: '1/2" Black Iron Pipe Tee', sku: 'SW0102J / 312T-12', stdPack: '2-pack', status: 'stocked', lastRestocked: 'Nov 2 (+2 Johnstone)', counterSay: 'Pair of 1/2-inch black iron tees' },
+          { id: 'gas-union', name: '1/2" Ground Joint Union', sku: 'SW0102I / 310U-12', stdPack: '2-pack', status: 'stocked', lastRestocked: 'Nov 2 (+2 Johnstone)', counterSay: 'Pair of 1/2-inch ground joint unions' },
+          { id: 'gas-nipple-12', name: '1/2" x 12" Pipe Nipple', sku: 'SW0102J / 30212X12', stdPack: '1 ea', status: 'stocked', lastRestocked: 'Nov 2 (+1 Johnstone)', counterSay: '1/2-inch by 12-inch black iron nipple' },
+          { id: 'gas-flex', name: '3/4" x 1/2" Stainless Gas Flex (24")', sku: 'B12-450', stdPack: '1 Line', status: 'stocked', lastRestocked: 'Oct 24', counterSay: '3/4 to 1/2 coated stainless gas flex line' }
+        ]
+      },
+      {
+        id: 'bin-pvc-drain',
+        name: 'PVC Drain & Vent Kit',
+        icon: '💧',
+        location: 'Bin P1 & P2',
+        desc: '3/4" Schedule 40 fittings, Arctic PVC cement & primer',
+        items: [
+          { id: 'pvc-elbow-90', name: '3/4" PVC 90° Elbow (Slip x Slip)', sku: 'SW0101H / 406-007', stdPack: '5-pack', status: 'stocked', lastRestocked: 'Nov 2 (+5 Johnstone)', counterSay: 'Bag of 3/4 PVC 90s (SxS)' },
+          { id: 'pvc-street-90', name: '3/4" PVC Street 90° (Slip x Spigot)', sku: 'SW0101H / 409-007', stdPack: '5-pack', status: 'stocked', lastRestocked: 'Nov 2 (+5 Johnstone)', counterSay: 'Bag of 3/4 PVC street 90s' },
+          { id: 'pvc-male-adapter', name: '3/4" PVC Male Adapter (MIPT x Slip)', sku: 'SW0101F / 436-007', stdPack: '5-pack', status: 'stocked', lastRestocked: 'Nov 2 (+5 Johnstone)', counterSay: 'Bag of 3/4 male adapters (SxM)' },
+          { id: 'pvc-tee', name: '3/4" PVC Tee (Slip x Slip x Slip)', sku: 'SW0101G / 401-007', stdPack: '5-pack', status: 'stocked', lastRestocked: 'Nov 2 (+5 Johnstone)', counterSay: 'Bag of 3/4 PVC tees' },
+          { id: 'pvc-cement-arctic', name: 'RectorSeal Arctic 616 PVC Cement', sku: 'S0109C / 55919', stdPack: '16oz Pint', status: 'stocked', lastRestocked: 'Nov 2 (+1 Can Johnstone)', counterSay: 'Pint can of RectorSeal Arctic 616 cold weather cement' },
+          { id: 'pvc-primer', name: 'Oatey Purple Primer (8oz Can)', sku: 'S0109B / 30755', stdPack: '8oz Can', status: 'stocked', lastRestocked: 'Oct 18', counterSay: 'Can of purple PVC primer' },
+          { id: 'pvc-safet-switch', name: 'Safe-T Switch SS2 Inline Drain Switch', sku: 'S84-120 / 97637', stdPack: '1 Unit', status: 'stocked', lastRestocked: 'Oct 28', counterSay: 'RectorSeal Safe-T-Switch SS2' }
+        ]
+      },
+      {
+        id: 'bin-hardware',
+        name: 'Hardware, Fasteners & Sealants',
+        icon: '🔩',
+        location: 'Bin H1 & H2',
+        desc: 'Malco zip screws, silicone, foil tape 324A & mastic',
+        items: [
+          { id: 'screw-malco-34', name: 'Malco #8 x 3/4" Zip Screws (Bit-Tip)', sku: 'S0107B / BT133T', stdPack: '500 Box', status: 'stocked', lastRestocked: 'Nov 2 (+1 Box Johnstone)', counterSay: '500-box of Malco 3/4-inch zip screws (BT133T)' },
+          { id: 'screw-malco-12', name: 'Malco #8 x 1/2" Zip Screws (HW8x1/2Z)', sku: 'S0107A / B12-452', stdPack: '500 Box', status: 'stocked', lastRestocked: 'Oct 20', counterSay: '500-box of Malco 1/2-inch zip screws' },
+          { id: 'sealant-silicone', name: 'Clear 100% RTV Silicone (10.3 oz)', sku: 'WW802C / 08011', stdPack: '10.3oz Tube', status: 'stocked', lastRestocked: 'Nov 2 (+2 Tubes Johnstone)', counterSay: 'Tubes of clear 100% RTV silicone' },
+          { id: 'tape-foil-324a', name: 'Nashua 324A UL-181 Foil Tape', sku: 'T18-324', stdPack: '2 Rolls', status: 'stocked', lastRestocked: 'Oct 24', counterSay: 'Rolls of Nashua 324A cold weather foil tape' },
+          { id: 'mastic-pookie', name: 'Water-Based Duct Mastic (Pookie)', sku: 'T18-100', stdPack: '1 Gal Tub', status: 'stocked', lastRestocked: 'Oct 15', counterSay: 'Gallon tub of water-based duct mastic' },
+          { id: 'ties-uv-14', name: '14" Heavy-Duty UV Black Cable Ties', sku: 'S58-014', stdPack: '100 Bag', status: 'stocked', lastRestocked: 'Oct 22', counterSay: 'Bag of 14-inch heavy duty black zip ties' }
+        ]
+      },
+      {
+        id: 'bin-electrical',
+        name: 'High Voltage Electrical Bin',
+        icon: '⚡',
+        location: 'Bin E1 & E2',
+        desc: '30A/40A breakers, 10/2 Romex, disconnects, whips & fuses',
+        items: [
+          { id: 'elec-breaker-hom230', name: 'Square D HOM230 30A 2P Breaker', sku: 'B18-120', stdPack: '1 Breaker', status: 'stocked', lastRestocked: 'Oct 26', counterSay: 'Square D 30-amp 2-pole Homeline breaker' },
+          { id: 'elec-breaker-q230', name: 'Siemens Q230 30A 2-Pole Breaker', sku: 'B18-230', stdPack: '1 Breaker', status: 'stocked', lastRestocked: 'Oct 19', counterSay: 'Siemens 30-amp 2-pole breaker (Q230)' },
+          { id: 'elec-disconnect-60a', name: '60A Non-Fused Disconnect (DDS-60U)', sku: 'B12-882', stdPack: '1 Enclosure', status: 'stocked', lastRestocked: 'Oct 29', counterSay: 'DiversiTech 60-amp non-fused disconnect' },
+          { id: 'elec-whip-6ft', name: '1/2" x 6ft Liquid-Tight Electrical Whip', sku: 'B12-850', stdPack: '1 Assembly', status: 'stocked', lastRestocked: 'Oct 29', counterSay: '1/2 by 6-foot liquid-tight whip kit' },
+          { id: 'elec-fuses-30a', name: '30A RK5 Dual-Element Time-Delay Fuses', sku: 'B11-330', stdPack: 'Pair of 2', status: 'stocked', lastRestocked: 'Oct 22', counterSay: 'Pair of Bussmann 30A RK5 time-delay fuses' }
+        ]
+      },
+      {
+        id: 'bin-torches-tanks',
+        name: 'Torches & Compressed Gases',
+        icon: '🧪',
+        location: 'Cylinder Rack',
+        desc: 'MC Acetylene (Full Swap), Dry Nitrogen, Sil-Fos 15 rods',
+        items: [
+          { id: 'gas-tank-mc', name: 'Full MC Acetylene Tank (10CF Swap)', sku: 'W0502A / 10ACIC', stdPack: 'Tank Swap', status: 'stocked', lastRestocked: 'Nov 2 (Full Swap Johnstone)', counterSay: 'Exchange for full MC acetylene tank' },
+          { id: 'gas-tank-n2', name: 'Dry Nitrogen Cylinder (Min 800 PSI)', sku: 'B13-904', stdPack: '40CF Tank', status: 'stocked', lastRestocked: 'Oct 28', counterSay: '40 cubic-foot dry nitrogen exchange' },
+          { id: 'braze-silfos-15', name: '15% Silver Brazing Rods (Sil-Fos 15)', sku: 'W14-115', stdPack: '1 Tube', status: 'stocked', lastRestocked: 'Oct 21', counterSay: 'Tube of 15% silver solder rods' },
+          { id: 'seal-nylog', name: 'Nylog Blue Synthetic Gasket Sealant', sku: 'RT201B', stdPack: '1 Bottle', status: 'stocked', lastRestocked: 'Oct 14', counterSay: 'Bottle of Nylog Blue' }
+        ]
+      }
+    ];
+
+    // --- 3. STATE VARIABLES ---
+    let currentTab = 'loadout';
+    let currentProfile = 'full-system';
+    let isRunningNewCircuit = true;
+    let isReusingLineset = false;
+    let loadedState = {};
+    let customItemPhotos = {}; // id -> base64/url
+    let activeJobPickups = [
+      { id: 'job-p1', name: '16"x25" to 24"x10" Return Air Drop Elbow', sku: 'TTS1625', price: '$56.44', checked: false, desc: 'Pre-fab galvanized transition for media filter' },
+      { id: 'job-p2', name: '16"x25" Honeywell Media Air Filter (F100F)', sku: 'F100F1625', price: '$96.70', checked: false, desc: '16x25x4 high-efficiency media cleaner cabinet' },
+      { id: 'job-p3', name: '26-Gauge Galvanized Sheet Metal (36" x 96")', sku: 'P0101A', price: '$26.65', checked: false, desc: 'Flat sheet for custom basement supply transitions' }
+    ];
+    let customParts = {};
+    let receiptHistory = [];
+    let currentActiveInspectId = null;
+
+    // --- 4. INITIALIZATION ---
+    function initApp() {
+      sendTelemetry('INFO', 'PHONE_CONNECTED', {
+        userAgent: navigator.userAgent,
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+      // Load stored state
+      try {
+        const storedChecks = localStorage.getItem('hvac_checks');
+        if (storedChecks) loadedState = JSON.parse(storedChecks);
+
+        const storedPhotos = localStorage.getItem('hvac_custom_photos');
+        if (storedPhotos) customItemPhotos = JSON.parse(storedPhotos);
+
+        const storedPickups = localStorage.getItem('hvac_job_pickups');
+        if (storedPickups) activeJobPickups = JSON.parse(storedPickups);
+
+        const storedHistory = localStorage.getItem('hvac_receipt_history');
+        if (storedHistory) receiptHistory = JSON.parse(storedHistory);
+
+        const storedBins = localStorage.getItem('hvac_truck_bins');
+        if (storedBins) {
+          const parsedBins = JSON.parse(storedBins);
+          parsedBins.forEach(b => {
+            const found = STANDARD_TRUCK_BINS.find(x => x.id === b.id);
+            if (found && Array.isArray(b.items)) {
+              b.items.forEach(it => {
+                const foundItem = found.items.find(x => x.id === it.id);
+                if (foundItem) {
+                  foundItem.status = it.status;
+                  if (it.lastRestocked) foundItem.lastRestocked = it.lastRestocked;
+                }
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.error('State load error', e);
+      }
+
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+      renderTruckBins();
+      renderReceiptHistory();
+      renderCatalogManager();
+    }
+
+    function saveState() {
+      localStorage.setItem('hvac_checks', JSON.stringify(loadedState));
+      localStorage.setItem('hvac_custom_photos', JSON.stringify(customItemPhotos));
+      localStorage.setItem('hvac_job_pickups', JSON.stringify(activeJobPickups));
+      localStorage.setItem('hvac_receipt_history', JSON.stringify(receiptHistory));
+      localStorage.setItem('hvac_truck_bins', JSON.stringify(STANDARD_TRUCK_BINS));
+    }
+
+    // --- 5. TAB SWITCHING ---
+    function switchAppTab(tab) {
+      currentTab = tab;
+      
+      ['loadout', 'bins', 'receipts', 'catalog'].forEach(t => {
+        document.getElementById(`tab-view-${t}`).classList.add('hidden');
+        const btn = document.getElementById(`nav-btn-${t}`);
+        btn.className = 'py-1.5 flex flex-col items-center gap-0.5 rounded-xl font-medium text-slate-400 hover:text-slate-200';
+      });
+
+      document.getElementById(`tab-view-${tab}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`nav-btn-${tab}`);
+      activeBtn.className = 'py-1.5 flex flex-col items-center gap-0.5 rounded-xl font-bold text-emerald-400 bg-slate-800/80';
+
+      if (tab === 'bins') renderTruckBins();
+      if (tab === 'catalog') renderCatalogManager();
+    }
+
+    
+    // --- JOBBER RECIPE & DYNAMIC SIZING ENGINE ---
+    let activeJobberRecipe = {
+      brand: 'American Standard',
+      systemType: 'full-system',
+      tonnage: 2.5,
+      acSeer: '13-SEER2',
+      furnaceBtu: '60k',
+      furnaceEff: '95%',
+      furnaceModel: 'S9X1',
+      hasNewLines: true,
+      hasRemoval: true,
+      isCondensing90plus: true,
+      specs: {
+        lineset: '3/8" x 3/4" x 50ft (UV Insulated)',
+        linesetBadge: '2.5T Spec',
+        breaker: '30A 2-Pole Breaker (HOM230)',
+        breakerBadge: '2.5T MOPD',
+        fuses: 'Pair of 30A RK5 Dual-Element Fuses',
+        fusesBadge: '2.5T MOPD',
+        pad: '36" x 36" Equipment Pad (Ultralite)',
+        padBadge: '2.5T Base',
+        venting: '2" Sch 40 Solid Core PVC (2 Sticks) + 90s',
+        ventingBadge: '95% Flue (No B-Vent)',
+        drainage: '3/4" Schedule 40 PVC + P-Trap',
+        drainageBadge: 'Condensate Drain'
+      }
+    };
+
+    let pendingJobberRecipe = null;
+
+    // --- EQUIPMENT SPECS & INSTALLATION MANUAL VIEWER ---
+    let currentSpecTarget = null;
+    let equipmentDataPlates = {}; // Map of itemId -> { photo: dataUrl, model: string }
+
+    function initEquipmentDataPlates() {
+      try {
+        const stored = localStorage.getItem('hvac_equipment_data_plates');
+        if (stored) equipmentDataPlates = JSON.parse(stored);
+      } catch (e) {}
+    }
+    initEquipmentDataPlates();
+
+    function saveEquipmentDataPlates() {
+      try {
+        localStorage.setItem('hvac_equipment_data_plates', JSON.stringify(equipmentDataPlates));
+      } catch (e) {}
+    }
+
+    function applySpecsToModal(s, fallbackName) {
+      if (!s) return;
+      document.getElementById('spec-modal-brand').innerText = s.brand || 'OEM';
+      document.getElementById('spec-modal-cat').innerText = s.category || 'Equipment';
+      document.getElementById('spec-modal-title').innerText = s.model_name || fallbackName || 'Equipment Specs';
+      document.getElementById('spec-modal-sub').innerText = s.is_exact_match ? 'Verified Manufacturer Technical Data' : 'Calculated Universal Trade Specifications';
+      
+      document.getElementById('spec-modal-mopd').innerText = s.mopd || 'Refer to rating plate';
+      document.getElementById('spec-modal-mca').innerText = s.mca || 'See manual';
+      document.getElementById('spec-modal-elec').innerText = s.electrical || 'Branch Circuit';
+      
+      document.getElementById('spec-modal-lineset').innerText = s.lineset || 'Standard Lineset';
+      document.getElementById('spec-modal-charge').innerText = s.charge_subcooling || 'Refer to rating plate';
+      
+      document.getElementById('spec-modal-vent').innerText = s.venting || 'Standard Venting';
+      document.getElementById('spec-modal-drain').innerText = s.drain || 'Condensate Drain';
+      document.getElementById('spec-modal-blower').innerText = s.blower_tips || 'Set CFM for optimum airflow.';
+
+      const pdfBtn = document.getElementById('spec-modal-pdf-btn');
+      const pdfLabel = document.getElementById('spec-modal-pdf-label');
+      pdfBtn.href = s.manual_url || s.google_search_url;
+      pdfLabel.innerText = s.is_exact_match ? `Open Official ${s.brand || 'OEM'} Manual (PDF)` : `Search & Open ${fallbackName || 'Unit'} Manual (PDF)`;
+    }
+
+    function openEquipmentSpecsModal(equipId, equipName, modelSearch) {
+      currentSpecTarget = { id: equipId, name: equipName, search: modelSearch || equipName };
+      
+      const modal = document.getElementById('modal-equipment-specs');
+      document.getElementById('spec-modal-title').innerText = equipName || 'Equipment Specs';
+      document.getElementById('spec-modal-brand').innerText = 'Loading...';
+      document.getElementById('spec-modal-cat').innerText = 'HVAC Unit';
+      document.getElementById('spec-modal-sub').innerText = 'Querying manufacturer product data & installation manual...';
+      document.getElementById('spec-custom-search-input').value = modelSearch || equipName || '';
+
+      // Check if we already have an attached rating plate photo for this item
+      const attached = equipmentDataPlates[equipId];
+      const previewEl = document.getElementById('spec-plate-photo-preview');
+      if (attached && attached.photo) {
+        document.getElementById('spec-plate-thumb').src = attached.photo;
+        document.getElementById('spec-plate-ocr-model').innerText = attached.model ? `Model: ${attached.model}` : 'Photo Attached';
+        previewEl.classList.remove('hidden');
+      } else {
+        previewEl.classList.add('hidden');
+      }
+
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+
+      const rec = activeJobberRecipe || {};
+      const payload = {
+        query: modelSearch || equipName,
+        brand: rec.brand || '',
+        tonnage: rec.tonnage || 2.5,
+        furnace_btu: rec.furnace_btu || '60k',
+        furnace_eff: rec.furnace_eff || '95%'
+      };
+
+      fetch('/api/lookup-specs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.specs) {
+          applySpecsToModal(data.specs, equipName);
+        }
+      })
+      .catch(err => {
+        const queryTerm = (modelSearch || equipName || 'HVAC').trim();
+        const googleUrl = 'https://www.google.com/search?q=' + encodeURIComponent(queryTerm + ' installation manual filetype:pdf');
+        const fallbackSpecs = {
+          brand: rec.brand || 'OEM',
+          category: 'Equipment',
+          model_name: equipName || queryTerm,
+          is_exact_match: false,
+          mopd: rec.tonnage && rec.tonnage > 3.5 ? '50A 2-Pole Breaker' : (currentProfile === 'furnace-only' ? '15A 1-Pole Breaker' : '30A-40A Breaker'),
+          mca: currentProfile === 'furnace-only' ? '8.5A - 11.5A' : '18.2A - 24.0A',
+          electrical: currentProfile === 'furnace-only' ? '120V 15A Branch (14/2 Romex)' : '208/230V 1-Phase (10/2 Romex)',
+          lineset: currentProfile === 'furnace-only' ? 'None (Furnace Only)' : (rec.tonnage && rec.tonnage > 3.5 ? '3/8" Liquid x 7/8" Suction' : '3/8" Liquid x 3/4" Suction'),
+          charge_subcooling: 'Target 10°F Subcooling at service valve',
+          venting: currentProfile === 'furnace-only' ? '2" Sch 40 PVC (95%) or 4" B-Vent (80%)' : 'Standard Venting',
+          drain: '3/4" PVC Trap + Float Safety Switch',
+          blower_tips: 'Set cooling blower speed to approx 400 CFM per ton.',
+          manual_url: googleUrl,
+          google_search_url: googleUrl
+        };
+        applySpecsToModal(fallbackSpecs, queryTerm);
+        document.getElementById('spec-modal-sub').innerText = 'Field Mode • Direct Web PDF Manual Ready';
+      });
+    }
+
+    function closeEquipmentSpecsModal() {
+      document.getElementById('modal-equipment-specs').classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function fetchSpecsForManualInput() {
+      const q = document.getElementById('spec-custom-search-input').value.trim();
+      if (!q) return;
+      openEquipmentSpecsModal(currentSpecTarget ? currentSpecTarget.id : 'custom', q, q);
+    }
+
+    function handleModelPlatePhotoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const spinner = document.getElementById('spec-scan-spinner');
+      if (spinner) spinner.classList.remove('hidden');
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const dataUrl = e.target.result;
+
+        fetch('/api/scan-model-plate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (spinner) spinner.classList.add('hidden');
+          if (data.success) {
+            const detectedModel = data.model || '';
+            if (detectedModel) {
+              document.getElementById('spec-custom-search-input').value = detectedModel;
+            }
+
+            // Save preview
+            const targetId = currentSpecTarget ? currentSpecTarget.id : 'eq-unit';
+            equipmentDataPlates[targetId] = {
+              photo: dataUrl,
+              model: detectedModel
+            };
+            saveEquipmentDataPlates();
+
+            document.getElementById('spec-plate-thumb').src = dataUrl;
+            document.getElementById('spec-plate-ocr-model').innerText = detectedModel ? `Model: ${detectedModel}` : 'Photo Attached';
+            document.getElementById('spec-plate-photo-preview').classList.remove('hidden');
+
+            if (data.specs) {
+              applySpecsToModal(data.specs, detectedModel || (currentSpecTarget ? currentSpecTarget.name : 'Equipment'));
+            }
+
+            sendTelemetry('ACTION', 'DATA_PLATE_CAPTURED', { model: detectedModel });
+            alert(`✅ Scanned Rating Plate!` + (detectedModel ? `\nDetected Model: ${detectedModel}\nSpecs & manual loaded.` : '\nPhoto attached to equipment card.'));
+          } else {
+            alert('Could not detect model text from image. Please enter model number manually.');
+          }
+        })
+        .catch(err => {
+          if (spinner) spinner.classList.add('hidden');
+          alert('Error uploading photo. Please try again.');
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearModelPlatePhoto() {
+      const targetId = currentSpecTarget ? currentSpecTarget.id : 'eq-unit';
+      delete equipmentDataPlates[targetId];
+      saveEquipmentDataPlates();
+      document.getElementById('spec-plate-photo-preview').classList.add('hidden');
+    }
+
+    function renderJobberRecipeConfirmation(parsed) {
+      pendingJobberRecipe = parsed;
+
+      document.getElementById('jcard-title').innerText = parsed.title || 'HVAC System';
+      document.getElementById('jcard-sub').innerText = parsed.subtitle || 'System Sizing';
+
+      const s = parsed.specs || {};
+      document.getElementById('jcard-lineset').innerText = s.lineset ? `${s.lineset} (${s.lineset_note || 'Sized'})` : '3/8" x 3/4" x 50ft';
+      document.getElementById('jcard-elec').innerText = s.electrical || '30A 2P Breaker + 30A Fuses';
+      document.getElementById('jcard-vent').innerText = s.venting || '2" Sch 40 PVC (95% Condensing)';
+      document.getElementById('jcard-pad').innerText = s.pad || '36" x 36" Pad';
+      
+      const scopeFlags = [];
+      if (parsed.has_new_lines) scopeFlags.push('New Lines (No Flush)');
+      if (parsed.has_removal) scopeFlags.push('Old Unit Removal Added');
+      document.getElementById('jcard-scope').innerText = scopeFlags.join(' • ') || 'Standard Installation';
+
+      const card = document.getElementById('jobber-recipe-card');
+      card.classList.remove('hidden');
+      setTimeout(() => {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 150);
+    }
+
+    function applyJobberRecipeToLoadout() {
+      const rec = pendingJobberRecipe || activeJobberRecipe;
+      if (!rec) return;
+
+      activeJobberRecipe = rec;
+      currentProfile = rec.profile || 'full-system';
+
+      // Update Header Display dynamically
+      const brand = rec.brand && rec.brand !== 'HVAC System' ? rec.brand : '';
+      const equipTitle = rec.title || `${brand} System`.trim();
+      const equipSub = rec.subtitle || '';
+      
+      const badgeMap = {
+        'full-system': 'Full Sys',
+        'furnace-only': 'Furnace',
+        'ac-only': 'AC Only',
+        'heatpump': 'Heat Pump',
+        'mini-split': 'Mini-Split'
+      };
+
+      document.getElementById('header-active-job').innerText = rec.job_title || 'Jobber Work Order';
+      document.getElementById('header-active-equip').innerText = equipSub ? `${equipTitle} • ${equipSub}` : equipTitle;
+      document.getElementById('header-profile-badge').innerText = badgeMap[currentProfile] || 'Custom';
+
+      saveState();
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+      closeJobberModal();
+      switchAppTab('loadout');
+
+      sendTelemetry('ACTION', 'APPLIED_JOBBER_RECIPE', {
+        title: equipTitle,
+        profile: currentProfile,
+        tonnage: rec.tonnage,
+        furnace_eff: rec.furnace_eff
+      });
+
+      alert(`✅ Applied ${equipTitle}!
+• System Type: ${badgeMap[currentProfile] || currentProfile}
+• Sizing: ${equipSub || 'Custom'}
+• Loadout updated with exact equipment & specs.`);
+    }
+
+    
+    // --- LEARNED RECIPES & CONTINUOUS FIELD LEARNING ENGINE ---
+    let learnedProfileItems = {
+      'full-system': [
+        {
+          id: 'learned-wire-188',
+          name: '18/8 Solid Copper Thermostat Wire (50ft Coil)',
+          qty: '1 Coil',
+          category: 'electrical',
+          badge: 'Company Standard',
+          desc: 'Southwire 18 AWG 8-conductor color-coded solid copper control wire'
+        }
+      ],
+      'mini-split': [],
+      'ac-only': [],
+      'furnace-only': [],
+      'heatpump': [
+        {
+          id: 'learned-wire-188-hp',
+          name: '18/8 Solid Copper Thermostat Wire (50ft Coil)',
+          qty: '1 Coil',
+          category: 'electrical',
+          badge: 'Heat Pump Standard',
+          desc: 'Required for reversing valve (O/B), dual stage compressor, & aux heat control'
+        }
+      ]
+    };
+
+    function initLearnedRecipes() {
+      try {
+        const stored = localStorage.getItem('hvac_learned_recipes');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          Object.keys(parsed).forEach(k => {
+            if (Array.isArray(parsed[k])) learnedProfileItems[k] = parsed[k];
+          });
+        }
+      } catch (e) {}
+    }
+
+    function saveLearnedRecipes() {
+      localStorage.setItem('hvac_learned_recipes', JSON.stringify(learnedProfileItems));
+    }
+
+    function openQuickAddLoadoutItemModal() {
+      const labels = {
+        'full-system': 'Full System (AC + Gas)',
+        'mini-split': 'Mini-Split Heat Pump',
+        'ac-only': 'AC Only',
+        'furnace-only': 'Furnace Only',
+        'heatpump': 'Heat Pump System'
+      };
+      document.getElementById('quick-add-remember-label').innerText = `Always include on future ${labels[currentProfile] || 'this system'} jobs`;
+      document.getElementById('modal-quick-add').classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function closeQuickAddLoadoutItemModal() {
+      document.getElementById('modal-quick-add').classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function selectQuickSuggestion(name, category, qty) {
+      document.getElementById('quick-add-name').value = name;
+      document.getElementById('quick-add-category').value = category;
+      document.getElementById('quick-add-qty').value = qty;
+    }
+
+    function submitQuickAddLoadoutItem() {
+      const name = document.getElementById('quick-add-name').value.trim();
+      const qty = document.getElementById('quick-add-qty').value.trim() || '1 Unit';
+      const category = document.getElementById('quick-add-category').value || 'electrical';
+      const remember = document.getElementById('quick-add-remember').checked;
+
+      if (!name) {
+        alert('Please enter an item name.');
+        return;
+      }
+
+      const cleanId = 'learned-' + Date.now();
+      const newItem = {
+        id: cleanId,
+        name: name,
+        qty: qty,
+        category: category,
+        badge: 'Learned Standard',
+        desc: `Added to ${currentProfile} loadout`
+      };
+
+      if (remember) {
+        if (!learnedProfileItems[currentProfile]) learnedProfileItems[currentProfile] = [];
+        learnedProfileItems[currentProfile].push(newItem);
+        saveLearnedRecipes();
+      }
+
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+      closeQuickAddLoadoutItemModal();
+
+      document.getElementById('quick-add-name').value = '';
+      document.getElementById('quick-add-qty').value = '';
+
+      alert(`✅ Added "${name}" to Today's Loadout!` + (remember ? `\nLearned as permanent company standard for ${currentProfile} jobs.` : ''));
+    }
+
+    // Teach from Receipt Discovery
+    function learnItemFromReceipt(name, category, qty) {
+      if (!learnedProfileItems[currentProfile]) learnedProfileItems[currentProfile] = [];
+      const exists = learnedProfileItems[currentProfile].find(x => x.name.toLowerCase() === name.toLowerCase());
+      if (!exists) {
+        learnedProfileItems[currentProfile].push({
+          id: 'receipt-learned-' + Date.now(),
+          name: name,
+          qty: qty || '1 Unit',
+          category: category || 'electrical',
+          badge: 'Learned from Receipt',
+          desc: 'Auto-added from supply house invoice'
+        });
+        saveLearnedRecipes();
+        initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+        alert(`✅ Learned from invoice! "${name}" will now always appear on future ${currentProfile} loadouts.`);
+      }
+    }
+
+    
+    // --- LOADOUT ITEM REMOVAL & OBSOLETE PART MANAGEMENT ---
+    let hiddenParts = [];
+    let sessionHiddenItems = [];
+
+    function initHiddenParts() {
+      try {
+        const saved = localStorage.getItem('hvac_hidden_parts');
+        if (saved) hiddenParts = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    function saveHiddenParts() {
+      localStorage.setItem('hvac_hidden_parts', JSON.stringify(hiddenParts));
+    }
+
+    function removeCurrentItemFromLoadout(isPermanent) {
+      if (!currentActiveInspectId) return;
+
+      const id = currentActiveInspectId;
+      const allParts = getAllParts();
+      let item = allParts[id];
+      if (!item) {
+        const learned = (learnedProfileItems[currentProfile] || []).find(x => x.id === id);
+        if (learned) item = learned;
+      }
+      if (!item) {
+        const pickup = activeJobPickups.find(x => x.id === id);
+        if (pickup) item = pickup;
+      }
+      if (!item) item = { name: 'Item' };
+
+      if (isPermanent) {
+        if (!confirm(`Are you sure you want to mark "${item.name}" as obsolete and permanently hide it from future loadouts?`)) {
+          return;
+        }
+
+        // Add to permanent hidden list
+        if (!hiddenParts.includes(id)) {
+          hiddenParts.push(id);
+          saveHiddenParts();
+        }
+
+        // Also check if it's in learnedProfileItems and remove
+        if (learnedProfileItems[currentProfile]) {
+          learnedProfileItems[currentProfile] = learnedProfileItems[currentProfile].filter(x => x.id !== id);
+          saveLearnedRecipes();
+        }
+
+        alert(`🚫 "${item.name}" has been marked obsolete and hidden from future loadouts.\nYou can restore it anytime in the Master Catalog.`);
+      } else {
+        // Just remove for today's session
+        if (!sessionHiddenItems.includes(id)) {
+          sessionHiddenItems.push(id);
+        }
+        // Also check if it's a job pickup
+        activeJobPickups = activeJobPickups.filter(p => p.id !== id);
+        saveState();
+        alert(`✓ "${item.name}" removed from today's loadout.`);
+      }
+
+      closeInspector();
+      renderLoadoutView();
+      renderCatalogManager();
+    }
+
+    function restoreItemToLoadout(id) {
+      hiddenParts = hiddenParts.filter(x => x !== id);
+      sessionHiddenItems = sessionHiddenItems.filter(x => x !== id);
+      saveHiddenParts();
+      renderLoadoutView();
+      renderCatalogManager();
+      alert('✅ Item restored! It will now appear on standard loadouts.');
+    }
+
+    // --- 6. RENDER TODAY'S LOADOUT ---
+    
+    
+    
+    // --- 6. RENDER TODAY'S LOADOUT (WITH SIZING BADGES & AUTO FILTERING) ---
+    function renderLoadoutView() {
+      // 1. Render Job Pickups (from Johnstone receipts or site conditions)
+      const pickupsContainer = document.getElementById('group-job-pickups');
+      pickupsContainer.innerHTML = '';
+      document.getElementById('count-job-pickups').innerText = `${activeJobPickups.length} items`;
+
+      activeJobPickups.forEach(p => {
+        const isChecked = !!p.checked;
+        const row = document.createElement('div');
+        row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isChecked ? 'opacity-50 bg-slate-900/30' : ''}`;
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5 flex-1 pr-2">
+            <span class="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 font-bold text-xs flex items-center justify-center flex-shrink-0">📌</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${p.name}</span>
+                <span class="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-purple-500/20 text-purple-300">${p.price}</span>
+                <span class="text-[8px] px-1 py-0.2 rounded font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">Johnstone Pickup</span>
+              </div>
+              <div class="text-[10px] text-slate-400 line-clamp-1">${p.desc} • SKU: ${p.sku}</div>
+            </div>
+          </div>
+          <label class="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer flex-shrink-0">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleJobPickupCheck('${p.id}', this.checked)" class="w-4 h-4 accent-purple-500 rounded cursor-pointer">
+          </label>
+        `;
+        pickupsContainer.appendChild(row);
+      });
+
+      // 2. Render Major Equipment & Units Sized by Jobber
+      const equipContainer = document.getElementById('group-loadout-equipment');
+      const elecContainer = document.getElementById('group-loadout-electrical');
+      const refrigContainer = document.getElementById('group-loadout-refrigeration');
+
+      equipContainer.innerHTML = '';
+      elecContainer.innerHTML = '';
+      refrigContainer.innerHTML = '';
+
+      const rec = activeJobberRecipe || {};
+      const ton = rec.tonnage || 2.5;
+      const brand = rec.brand && rec.brand !== 'HVAC System' ? rec.brand : 'American Standard';
+      const furnaceBtu = rec.furnace_btu || '60k';
+      const furnaceEff = rec.furnace_eff || '95%';
+      const seer = rec.seer || '13-SEER2';
+      const is90Plus = rec.is_condensing_90plus !== undefined ? rec.is_condensing_90plus : (furnaceEff.includes('95') || furnaceEff.includes('96') || furnaceEff.includes('Condensing'));
+
+      // Dynamically build equipmentItems based on currentProfile & activeJobberRecipe
+      let equipmentItems = [];
+      if (rec.equipment && Array.isArray(rec.equipment) && rec.equipment.length > 0) {
+        equipmentItems = [...rec.equipment];
+      } else if (currentProfile === 'furnace-only') {
+        equipmentItems = [
+          {
+            id: 'eq-furnace',
+            name: `${brand} ${furnaceBtu} ${furnaceEff} Furnace`,
+            qty: '1 Unit',
+            badge: furnaceEff,
+            desc: `Single-stage gas furnace • ${furnaceBtu} input • 120V`,
+            model_search: `${brand} ${furnaceBtu} ${furnaceEff} Furnace`,
+            icon: '🔥'
+          }
+        ];
+      } else if (currentProfile === 'ac-only') {
+        equipmentItems = [
+          {
+            id: 'eq-ac',
+            name: `${brand} ${ton}-Ton Condenser (${seer})`,
+            qty: '1 Unit',
+            badge: `${ton}T Sizing`,
+            desc: `Outdoor AC Condenser • Factory charged • ${seer}`,
+            model_search: `${brand} ${ton}T ${seer} Condenser`,
+            icon: '❄️'
+          },
+          {
+            id: 'eq-coil',
+            name: `${brand} ${ton}-Ton Cased Coil`,
+            qty: '1 Unit',
+            badge: 'Factory TXV',
+            desc: 'Indoor cased evaporator coil',
+            model_search: `${brand} ${ton}T Cased Coil`,
+            icon: '❄️'
+          }
+        ];
+      } else if (currentProfile === 'heatpump') {
+        equipmentItems = [
+          {
+            id: 'eq-hp',
+            name: `${brand} ${ton}-Ton Heat Pump Condenser (${seer})`,
+            qty: '1 Unit',
+            badge: `${ton}T Heat Pump`,
+            desc: `Inverter / Heat Pump outdoor unit • ${seer}`,
+            model_search: `${brand} ${ton}T Heat Pump`,
+            icon: '❄️'
+          },
+          {
+            id: 'eq-air-handler',
+            name: `${brand} ${ton}-Ton Multi-Position Air Handler`,
+            qty: '1 Unit',
+            badge: 'ECM Blower',
+            desc: 'Indoor electric air handler unit',
+            model_search: `${brand} ${ton}T Air Handler`,
+            icon: '💨'
+          }
+        ];
+      } else if (currentProfile === 'mini-split') {
+        equipmentItems = [
+          {
+            id: 'eq-minisplit-od',
+            name: `${brand} ${ton}-Ton Ductless Inverter Heat Pump`,
+            qty: '1 Unit',
+            badge: `${ton}T Inverter`,
+            desc: 'Variable-speed outdoor ductless condenser',
+            model_search: `${brand} ${ton}T Ductless`,
+            icon: '❄️'
+          },
+          {
+            id: 'eq-minisplit-id',
+            name: `${brand} High-Wall Ductless Indoor Air Handler`,
+            qty: '1 Unit',
+            badge: 'Wall Mount',
+            desc: 'Whisper-quiet indoor evaporator head + remote',
+            model_search: `${brand} Ductless Indoor Unit`,
+            icon: '💨'
+          }
+        ];
+      } else {
+        // full-system
+        equipmentItems = [
+          {
+            id: 'eq-ac',
+            name: `${brand} ${ton}-Ton Condenser (${seer})`,
+            qty: '1 Unit',
+            badge: `${ton}T Sizing`,
+            desc: `Outdoor AC Condenser • Factory charged • ${seer}`,
+            model_search: `${brand} ${ton}T ${seer} Condenser`,
+            icon: '❄️'
+          },
+          {
+            id: 'eq-furnace',
+            name: `${brand} ${furnaceBtu} ${furnaceEff} Furnace`,
+            qty: '1 Unit',
+            badge: furnaceEff,
+            desc: `Single-stage gas furnace • ${furnaceBtu} input`,
+            model_search: `${brand} ${furnaceBtu} ${furnaceEff} Furnace`,
+            icon: '🔥'
+          },
+          {
+            id: 'eq-coil',
+            name: `${brand} ${ton}-Ton Cased Coil`,
+            qty: '1 Unit',
+            badge: 'Factory TXV',
+            desc: 'Indoor cased evaporator coil',
+            model_search: `${brand} ${ton}T Cased Coil`,
+            icon: '❄️'
+          }
+        ];
+      }
+
+      equipmentItems.forEach(item => {
+        if (hiddenParts.includes(item.id) || sessionHiddenItems.includes(item.id)) return;
+
+        const isChecked = !!loadedState[item.id];
+        const row = document.createElement('div');
+        row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isChecked ? 'opacity-50 bg-slate-900/30' : ''}`;
+        row.innerHTML = `
+          <div class="flex items-center gap-2 flex-1 pr-2">
+            <button onclick="openEquipmentSpecsModal('${item.id}', '${item.name.replace(/'/g, "\\'")}', '${(item.model_search || item.name).replace(/'/g, "\\'")}')" class="px-2 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-[10px] font-black text-blue-300 hover:text-white flex items-center gap-1 spring flex-shrink-0">
+              <span>📖</span>
+              <span>Specs & Manual</span>
+            </button>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${item.name}</span>
+                <span class="text-[9px] px-1 py-0.2 rounded font-bold bg-slate-800 text-slate-400">${item.qty}</span>
+                <span class="text-[8px] px-1.5 py-0.2 rounded font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">🏷️ ${item.badge}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 line-clamp-1">${item.desc}</div>
+            </div>
+          </div>
+          <label class="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer flex-shrink-0">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="togglePartCheck('${item.id}', this.checked)" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+          </label>
+        `;
+        equipContainer.appendChild(row);
+      });
+
+      // 3. Render High Voltage Electrical (Sized MOPD & Circuit Requirements)
+      let elecList = [];
+      if (currentProfile === 'furnace-only') {
+        elecList = [
+          { id: 'breaker-1pole', name: 'Square D HOM115 15A 1-Pole Breaker', qty: '1 Breaker', badge: '120V Circuit', desc: 'Main panel service protection for furnace' },
+          { id: 'ssu-switch', name: 'SSU Safety Switch Cover + 15A Edison Fuse', qty: '1 Switch', badge: 'Service Disconnect', desc: 'Emergency shutoff switch with fuse redundancy' },
+          { id: 'romex-14-2', name: '14/2 with Ground Romex NM-B (50ft)', qty: '50ft Coil', badge: '15A Branch', desc: 'White jacket 120V branch circuit wire' },
+          { id: 'handy-box', name: '4" Metal Utility Box + Blank/Switch Cover', qty: '1 Box', badge: 'Junction Box', desc: 'Steel box mounted to furnace cabinet for power' }
+        ];
+      } else if (ton <= 2.5) {
+        elecList = [
+          { id: 'breaker-2pole', name: 'Square D HOM230 30A 2-Pole Breaker', qty: '1 Breaker', badge: `${ton}T MOPD Match`, desc: 'Service panel branch protection' },
+          { id: 'fuses', name: 'Pair of 30A RK5 Dual-Element Fuses', qty: '2 Fuses', badge: `${ton}T MOPD Match`, desc: 'Time-delay cartridge fuses for disconnect' },
+          { id: 'disconnect', name: '60A Non-Fused Disconnect Box', qty: '1 Enclosure', badge: 'Outdoor Disconnect', desc: 'DiversiTech DDS-60U pullout switch' },
+          { id: 'whip', name: '1/2" x 6ft Liquid-Tight Electrical Whip', qty: '1 Whip', badge: 'Pre-Wired 10AWG', desc: 'Conduit from disconnect to condenser' }
+        ];
+      } else if (ton <= 3.5) {
+        elecList = [
+          { id: 'breaker-2pole', name: 'Square D HOM240 40A 2-Pole Breaker', qty: '1 Breaker', badge: `${ton}T MOPD Match`, desc: 'Service panel 40A branch protection' },
+          { id: 'fuses', name: 'Pair of 40A RK5 Dual-Element Fuses', qty: '2 Fuses', badge: `${ton}T MOPD Match`, desc: 'Time-delay cartridge fuses for disconnect' },
+          { id: 'disconnect', name: '60A Non-Fused Disconnect Box', qty: '1 Enclosure', badge: 'Outdoor Disconnect', desc: 'DiversiTech DDS-60U pullout switch' },
+          { id: 'whip', name: '1/2" x 6ft Liquid-Tight Electrical Whip', qty: '1 Whip', badge: 'Pre-Wired 8AWG', desc: 'Conduit from disconnect to condenser' }
+        ];
+      } else {
+        elecList = [
+          { id: 'breaker-2pole', name: 'Square D HOM250 50A 2-Pole Breaker', qty: '1 Breaker', badge: `${ton}T MOPD Match`, desc: 'Service panel 50A branch protection' },
+          { id: 'fuses', name: 'Pair of 50A RK5 Dual-Element Fuses', qty: '2 Fuses', badge: `${ton}T MOPD Match`, desc: 'Time-delay cartridge fuses for disconnect' },
+          { id: 'disconnect', name: '60A Non-Fused Disconnect Box', qty: '1 Enclosure', badge: 'Outdoor Disconnect', desc: 'DiversiTech DDS-60U pullout switch' },
+          { id: 'whip', name: '3/4" x 6ft Heavy-Duty Liquid-Tight Whip (6AWG)', qty: '1 Whip', badge: '50A Conduit', desc: 'Conduit from disconnect to condenser' }
+        ];
+      }
+
+      elecList.forEach(item => {
+        if (hiddenParts.includes(item.id) || sessionHiddenItems.includes(item.id)) return;
+
+        const isChecked = !!loadedState[item.id];
+        const row = document.createElement('div');
+        row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isChecked ? 'opacity-50 bg-slate-900/30' : ''}`;
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5 flex-1 pr-2">
+            <button onclick="openInspector('${item.id}')" class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-blue-400 hover:text-white spring flex-shrink-0">
+              i
+            </button>
+            <div class="flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${item.name}</span>
+                <span class="text-[9px] px-1 py-0.2 rounded font-bold bg-slate-800 text-slate-400">${item.qty}</span>
+                <span class="text-[8px] px-1.5 py-0.2 rounded font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">🏷️ ${item.badge}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 line-clamp-1">${item.desc}</div>
+            </div>
+          </div>
+          <label class="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer flex-shrink-0">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="togglePartCheck('${item.id}', this.checked)" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+          </label>
+        `;
+        elecContainer.appendChild(row);
+      });
+
+      // 4. Render Refrigeration & Venting Sizing
+      let refrigList = [];
+      if (currentProfile === 'furnace-only') {
+        if (is90Plus) {
+          refrigList.push(
+            { id: 'pvc-flue-pipe', name: '2" Sch 40 Solid Core PVC (2 Sticks) + 90s', qty: '20 Feet', badge: '95% Flue (No B-Vent)', desc: 'Combustion intake & flue exhaust pipe' },
+            { id: 'condensate-trap', name: '3/4" Schedule 40 PVC Condensate Trap Kit', qty: '1 Kit', badge: 'Acidic Condensate', desc: 'Furnace secondary heat exchanger drain trap' },
+            { id: 'condensate-pump', name: 'Little Giant VCMA-15UL Condensate Pump', qty: '1 Pump', badge: 'Aux Drain', desc: 'Automatic removal pump for furnace drainage' }
+          );
+        } else {
+          refrigList.push(
+            { id: 'b-vent-pipe', name: '4" Metal B-Vent Pipe (5ft) + Adjustable Elbow + Draft Hood', qty: '1 Kit', badge: '80% Natural Draft', desc: 'Double-wall metal flue to chimney/roof' },
+            { id: 'co-detector', name: 'Duct Smoke & Carbon Monoxide Detector', qty: '1 Unit', badge: 'Combustion Safety', desc: 'Life safety interlock sensor' }
+          );
+        }
+        refrigList.push(
+          { id: 'gas-flex-kit', name: '1/2" x 24" Stainless Steel Gas Flex Line Kit + Ball Valve', qty: '1 Kit', badge: 'Gas Supply', desc: 'Flexible gas connector + shutoff valve' }
+        );
+      } else {
+        // AC / Heat Pump / Full System
+        const linesetItem = ton <= 3.5 
+          ? { id: 'lineset', name: '3/8" x 3/4" Lineset (50ft UV Insulated)', qty: '1 Coil', badge: `${ton}T Suction Match`, desc: 'Mueller / DiversiTech black UV jacket coil' }
+          : { id: 'lineset', name: '3/8" x 7/8" Lineset (50ft Heavy Suction UV)', qty: '1 Coil', badge: `${ton}T Heavy Suction`, desc: 'Large bore 7/8" suction line for 4-5 ton systems' };
+
+        const padItem = ton <= 2.5
+          ? { id: 'condenser-pad', name: '36" x 36" Equipment Pad (Ultralite)', qty: '1 Pad', badge: `${ton}T Base Match`, desc: 'Lightweight composite condenser base' }
+          : { id: 'condenser-pad', name: '38" x 42" Equipment Pad + Shims', qty: '1 Pad', badge: `${ton}T Base Match`, desc: 'Heavy-duty footprint pad with anti-vibration shims' };
+
+        refrigList.push(linesetItem, padItem);
+
+        if (currentProfile === 'full-system' || (rec.is_furnace && is90Plus)) {
+          refrigList.push({ id: 'pvc-flue-pipe', name: '2" Sch 40 Solid Core PVC (2 Sticks) + 90s', qty: '20 Feet', badge: '95% Flue (No B-Vent)', desc: 'Combustion intake & flue exhaust pipe' });
+        } else if (rec.is_furnace && !is90Plus) {
+          refrigList.push({ id: 'b-vent-pipe', name: '4" Metal B-Vent Pipe (5ft) + Adjustable Elbow', qty: '1 Kit', badge: '80% Natural Draft', desc: 'Double-wall metal flue' });
+        }
+
+        refrigList.push({ id: 'safet-switch', name: 'Safe-T Switch SS2 Inline Drain Switch', qty: '1 Switch', badge: 'Aux Pan Sensor', desc: 'Magnetic float switch for secondary drain port' });
+      }
+
+      if (rec.has_removal || rec.hasRemoval) {
+        refrigList.push({
+          id: 'tearout-recovery',
+          name: 'Refrigerant Recovery Machine + Cylinder + Hand Truck',
+          qty: '1 Kit',
+          badge: 'Removal of Old Unit',
+          desc: 'Evacuate old refrigerant and haul out old furnace & AC'
+        });
+      }
+
+            refrigList.forEach(item => {
+        if (hiddenParts.includes(item.id) || sessionHiddenItems.includes(item.id)) return;
+
+        const isChecked = !!loadedState[item.id];
+        const row = document.createElement('div');
+        row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isChecked ? 'opacity-50 bg-slate-900/30' : ''}`;
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5 flex-1 pr-2">
+            <button onclick="openInspector('${item.id}')" class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-blue-400 hover:text-white spring flex-shrink-0">
+              i
+            </button>
+            <div class="flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${item.name}</span>
+                <span class="text-[9px] px-1 py-0.2 rounded font-bold bg-slate-800 text-slate-400">${item.qty}</span>
+                <span class="text-[8px] px-1.5 py-0.2 rounded font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🏷️ ${item.badge}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 line-clamp-1">${item.desc}</div>
+            </div>
+          </div>
+          <label class="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer flex-shrink-0">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="togglePartCheck('${item.id}', this.checked)" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+          </label>
+        `;
+        refrigContainer.appendChild(row);
+      });
+
+      
+      // 5. Render Learned Items for Current Profile (Wires, Pumps, Accessories)
+      const learnedList = learnedProfileItems[currentProfile] || [];
+            learnedList.forEach(item => {
+        if (hiddenParts.includes(item.id) || sessionHiddenItems.includes(item.id)) return;
+
+        const isChecked = !!loadedState[item.id];
+        const row = document.createElement('div');
+        row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isChecked ? 'opacity-50 bg-slate-900/30' : ''}`;
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5 flex-1 pr-2">
+            <span class="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-300 font-bold text-xs flex items-center justify-center flex-shrink-0">🧠</span>
+            <div class="flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${item.name}</span>
+                <span class="text-[9px] px-1 py-0.2 rounded font-bold bg-slate-800 text-slate-400">${item.qty}</span>
+                <span class="text-[8px] px-1.5 py-0.2 rounded font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">🏷️ ${item.badge || 'Company Standard'}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 line-clamp-1">${item.desc}</div>
+            </div>
+          </div>
+          <label class="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer flex-shrink-0">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="togglePartCheck('${item.id}', this.checked)" class="w-4 h-4 accent-blue-500 rounded cursor-pointer">
+          </label>
+        `;
+
+        if (item.category === 'electrical') elecContainer.appendChild(row);
+        else refrigContainer.appendChild(row);
+      });
+
+      updateLoadoutProgress();
+    }
+
+    function toggleJobPickupCheck(id, isChecked) {
+      const p = activeJobPickups.find(x => x.id === id);
+      if (p) p.checked = isChecked;
+      saveState();
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+    }
+
+    function togglePartCheck(id, isChecked) {
+      if (isChecked) loadedState[id] = true;
+      else delete loadedState[id];
+      saveState();
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+    }
+
+    function updateLoadoutProgress() {
+      let total = activeJobPickups.length + 3; // + 3 equipment items
+      let loaded = activeJobPickups.filter(p => p.checked).length;
+      
+      ['eq-ac', 'eq-furnace', 'eq-coil'].forEach(id => {
+        if (loadedState[id]) loaded++;
+      });
+
+      Object.values(DEFAULT_PARTS_CATALOG).forEach(item => {
+        if (!isRunningNewCircuit && (item.id === 'breaker-2pole' || item.id === 'romex-wire')) return;
+        if (!item.profiles.includes(currentProfile)) return;
+        total++;
+        if (loadedState[item.id]) loaded++;
+      });
+
+      const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+      document.getElementById('loadout-progress-text').innerText = `${loaded} of ${total} Loaded`;
+      document.getElementById('loadout-progress-badge').innerText = `${pct}%`;
+      document.getElementById('loadout-progress-bar').style.width = `${pct}%`;
+    }
+
+    function resetDayChecks() {
+      if (confirm("Reset today's loadout checklist?")) {
+        loadedState = {};
+        activeJobPickups.forEach(p => p.checked = false);
+        saveState();
+        initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+      }
+    }
+
+    // --- 7. TRUCK BINS (TRAFFIC LIGHTS) ---
+    // --- 7. TRUCK BINS (ITEM-LEVEL STATUS & AUTO COUNTER SHORTAGE RUN) ---
+    function getAllParts() {
+      return { ...DEFAULT_PARTS_CATALOG, ...customParts };
+    }
+
+    function getAllBinItems() {
+      const list = [];
+      STANDARD_TRUCK_BINS.forEach(b => {
+        b.items.forEach(it => {
+          list.push({ ...it, binName: b.name, binIcon: b.icon, binId: b.id });
+        });
+      });
+      return list;
+    }
+
+    function renderTruckBins() {
+      const container = document.getElementById('truck-bins-container');
+      container.innerHTML = '';
+
+      const allItems = getAllBinItems();
+      const shortages = allItems.filter(x => x.status === 'low' || x.status === 'empty');
+
+      // 1. Supply House Restock Run Banner (Only shown if shortages exist)
+      if (shortages.length > 0) {
+        const shortCard = document.createElement('div');
+        shortCard.className = 'border-2 border-amber-500/50 rounded-2xl overflow-hidden bg-gradient-to-r from-amber-950/50 via-slate-900 to-slate-900 p-3.5 space-y-3 shadow-lg';
+        shortCard.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">🛒</span>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <h3 class="text-xs font-bold text-amber-300 uppercase tracking-wider">Supply House Restock Run</h3>
+                  <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300">${shortages.length} Short</span>
+                </div>
+                <p class="text-[10px] text-slate-300">Auto-compiled from items flagged low on truck</p>
+              </div>
+            </div>
+            <button onclick="openCounterRepModal()" class="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md spring flex items-center gap-1">
+              <span>Show Counter Rep</span>
+              <span>›</span>
+            </button>
+          </div>
+
+          <div class="space-y-1.5">
+            ${shortages.map(it => `
+              <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] px-1.5 py-0.2 rounded font-bold ${it.status === 'empty' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}">${it.status === 'empty' ? '🔴 Out' : '🟡 Low'}</span>
+                  <div>
+                    <span class="font-bold text-white block">${it.name}</span>
+                    <span class="text-[10px] text-slate-400">${it.binName} • Std: ${it.stdPack}</span>
+                  </div>
+                </div>
+                <button onclick="setItemStatus('${it.binId}', '${it.id}', 'stocked')" class="px-2 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white text-[10px] font-bold spring">
+                  + Restocked
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        container.appendChild(shortCard);
+      }
+
+      // 2. Render Each Standard Bin Tray with its Individual Items
+      STANDARD_TRUCK_BINS.forEach(bin => {
+        const binShortages = bin.items.filter(x => x.status === 'low' || x.status === 'empty');
+        const isAllStocked = binShortages.length === 0;
+
+        const card = document.createElement('div');
+        card.className = 'border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60 p-3.5 space-y-3';
+
+        card.innerHTML = `
+          <!-- Tray Header -->
+          <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">${bin.icon}</span>
+              <div>
+                <h3 class="text-xs font-bold text-white">${bin.name}</h3>
+                <span class="text-[10px] text-slate-400">${bin.location} • ${bin.desc}</span>
+              </div>
+            </div>
+            <div>
+              ${isAllStocked 
+                ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">🟢 All ' + bin.items.length + ' Stocked</span>' 
+                : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">🟡 ' + binShortages.length + ' Low</span>'}
+            </div>
+          </div>
+
+          <!-- Individual Item Rows inside this Tray -->
+          <div class="space-y-1.5 divide-y divide-slate-800/40">
+            ${bin.items.map(it => {
+              let badgeHtml = '';
+              let actionHtml = '';
+
+              if (it.status === 'stocked') {
+                badgeHtml = '<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">🟢 Stocked</span>';
+                actionHtml = `<button onclick="setItemStatus('${bin.id}', '${it.id}', 'low')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-amber-950/40 border border-slate-700 hover:border-amber-500/40 text-slate-400 hover:text-amber-300 text-[10px] font-bold spring">
+                  🟡 Flag Low
+                </button>`;
+              } else if (it.status === 'low') {
+                badgeHtml = '<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">🟡 Running Low</span>';
+                actionHtml = `<div class="flex items-center gap-1">
+                  <button onclick="setItemStatus('${bin.id}', '${it.id}', 'empty')" class="px-1.5 py-1 rounded-lg bg-red-950/40 border border-red-500/30 text-red-400 text-[10px] font-bold spring">
+                    🔴 Empty
+                  </button>
+                  <button onclick="setItemStatus('${bin.id}', '${it.id}', 'stocked')" class="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold spring">
+                    🟢 Restocked
+                  </button>
+                </div>`;
+              } else {
+                badgeHtml = '<span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">🔴 Out of Stock</span>';
+                actionHtml = `<button onclick="setItemStatus('${bin.id}', '${it.id}', 'stocked')" class="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold spring">
+                  🟢 Restocked
+                </button>`;
+              }
+
+              return `
+                <div class="pt-2 flex items-center justify-between text-xs">
+                  <div class="flex-1 pr-2">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-bold ${it.status === 'empty' ? 'text-slate-400 line-through' : 'text-slate-100'}">${it.name}</span>
+                      ${badgeHtml}
+                    </div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">
+                      <span class="text-slate-500">Std: ${it.stdPack}</span> • <span class="text-emerald-400/90">${it.lastRestocked}</span>
+                    </div>
+                  </div>
+                  <div class="flex-shrink-0">
+                    ${actionHtml}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function setItemStatus(binId, itemId, newStatus) {
+      const b = STANDARD_TRUCK_BINS.find(x => x.id === binId);
+      if (b) {
+        const item = b.items.find(x => x.id === itemId);
+        if (item) {
+          item.status = newStatus;
+          if (newStatus === 'stocked') {
+            item.lastRestocked = 'Just Restocked (' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ')';
+          }
+          saveState();
+          renderTruckBins();
+        }
+      }
+    }
+
+    // --- 8. REALISTIC PACKAGE INSPECTOR & PHOTO UPDATER ---
+    function openInspector(id) {
+      currentActiveInspectId = id;
+      const allParts = getAllParts();
+      let item = allParts[id];
+      if (!item) {
+        const learned = (learnedProfileItems[currentProfile] || []).find(x => x.id === id);
+        if (learned) item = learned;
+      }
+      if (!item) {
+        const pickup = activeJobPickups.find(x => x.id === id);
+        if (pickup) item = pickup;
+      }
+      if (!item) item = {
+        name: 'Custom Part',
+        tag: 'Part Info',
+        shelfLocation: 'General Truck Stock',
+        pkgType: 'Boxed',
+        desc: 'Standard part',
+        counterSay: 'Ask counter rep by part description',
+        brands: 'Johnstone / Duncan Supply',
+        pkgNotes: 'Standard trade packaging.',
+        connect: 'Installed per job specifications.',
+        gotcha: 'Always follow manufacturer guidelines.',
+        boxColor: '#1e293b',
+        accentColor: '#38bdf8',
+        badgeText: 'TRADE PART'
+      };
+
+      document.getElementById('inspect-title').innerText = item.name;
+      document.getElementById('inspect-tag').innerText = item.tag || 'Standard';
+      document.getElementById('inspect-bin-badge').innerText = item.shelfLocation || 'Truck 4';
+      document.getElementById('inspect-visual-caption').innerText = item.desc;
+      document.getElementById('inspect-packaging-notes').innerText = `Packaging: ${item.pkgType} • ${item.pkgNotes || ''}`;
+      document.getElementById('inspect-counter-say').innerText = item.counterSay || item.name;
+      document.getElementById('inspect-brands').innerText = item.brands || 'Johnstone Supply';
+      document.getElementById('inspect-connect').innerText = item.connect;
+      document.getElementById('inspect-gotcha').innerText = item.gotcha;
+
+      renderInspectPhoto(id, item);
+
+      const m = document.getElementById('modal-inspector');
+      m.classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function closeInspector() {
+      document.getElementById('modal-inspector').classList.add('opacity-0', 'pointer-events-none');
+      currentActiveInspectId = null;
+    }
+
+    function renderInspectPhoto(id, item) {
+      const display = document.getElementById('inspect-photo-display');
+      const resetBtn = document.getElementById('inspect-reset-photo-btn');
+      const camBtnText = document.getElementById('inspect-camera-btn-text');
+
+      const customPhoto = customItemPhotos[id];
+
+      if (customPhoto) {
+        // Show real photo captured from user's truck!
+        display.innerHTML = `
+          <img src="${customPhoto}" class="w-full h-full object-cover">
+          <div class="absolute bottom-2 left-2 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 backdrop-blur-sm">
+            <span>📷</span>
+            <span>Real Truck Photo (Saved)</span>
+          </div>
+        `;
+        resetBtn.classList.remove('hidden');
+        camBtnText.innerText = 'Retake Truck Photo';
+      } else {
+        // Render high-fidelity realistic trade package representation
+        display.innerHTML = `
+          <div class="w-full h-full flex flex-col items-center justify-center p-3 relative" style="background: radial-gradient(circle at 50% 30%, ${item.boxColor} 0%, #090d16 80%);">
+            <!-- Simulated Trade Box / Clamshell Packaging Card -->
+            <div class="w-48 h-28 rounded-xl border-2 border-slate-600/60 shadow-2xl p-2.5 flex flex-col justify-between relative overflow-hidden" style="background-color: ${item.boxColor};">
+              <div class="flex items-center justify-between border-b border-white/20 pb-1">
+                <span class="text-[9px] font-black tracking-wider text-white uppercase">${item.brands ? item.brands.split('|')[0].trim().slice(0, 15) : 'TRADE PACK'}</span>
+                <span class="text-[8px] px-1 py-0.2 rounded font-bold bg-white text-slate-900">${item.pkgType.slice(0, 10)}</span>
+              </div>
+              <div class="text-center my-auto">
+                <div class="text-xs font-black text-white tracking-wide" style="color: ${item.accentColor};">${item.badgeText || item.name.slice(0, 18)}</div>
+                <div class="text-[9px] text-slate-200 font-mono mt-0.5">${item.qty}</div>
+              </div>
+              <div class="flex items-center justify-between pt-1 border-t border-white/10 text-[8px] text-slate-300 font-mono">
+                <span>|||| ||| |||||||</span>
+                <span>${item.id}</span>
+              </div>
+            </div>
+            <div class="absolute top-2 right-2 text-[9px] px-2 py-0.5 rounded bg-slate-900/80 text-slate-400 border border-slate-800">
+              ${item.pkgType}
+            </div>
+          </div>
+        `;
+        resetBtn.classList.add('hidden');
+        camBtnText.innerText = 'Snap Real Truck Photo';
+      }
+    }
+
+    function handleInspectCustomPhoto(event) {
+      const file = event.target.files[0];
+      if (!file || !currentActiveInspectId) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        compressImageToDataUrl(e.target.result, function(compressedUrl) {
+          customItemPhotos[currentActiveInspectId] = compressedUrl;
+          saveState();
+          const item = DEFAULT_PARTS_CATALOG[currentActiveInspectId];
+          renderInspectPhoto(currentActiveInspectId, item);
+          alert('✅ Real package photo saved for Truck 4!');
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetInspectCustomPhoto() {
+      if (!currentActiveInspectId) return;
+      delete customItemPhotos[currentActiveInspectId];
+      saveState();
+      const item = DEFAULT_PARTS_CATALOG[currentActiveInspectId];
+      renderInspectPhoto(currentActiveInspectId, item);
+    }
+
+    function compressImageToDataUrl(rawUrl, callback) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        const maxDim = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > h && w > maxDim) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else if (h > maxDim) {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressed = canvas.toDataURL('image/jpeg', 0.75);
+        callback(compressed);
+      };
+      img.src = rawUrl;
+    }
+
+    // --- 9. SMART RECEIPT SCANNER & 11/2 JOBBER SPLITTER ---
+    let pendingScannedReceipt = null;
+
+    function loadJohnstoneJobSample() {
+      // Data matching the real Johnstone Supply invoices from 11/2/2026 for Job "PITCHER"
+      pendingScannedReceipt = {
+        supplier: 'Johnstone Supply',
+        invNumber: '#68214078.002',
+        poJob: 'PITCHER',
+        totalCost: '$370.37',
+        jobItems: [
+          { id: 'j-1', name: '16"x25" to 24"x10" Return Air Drop Elbow', sku: 'TTS1625', qty: '1 ea', price: '$56.44', desc: 'Pre-fabricated galvanized transition elbow' },
+          { id: 'j-2', name: '16"x25" Honeywell Media Air Filter (F100F)', sku: 'F100F1625/U', qty: '1 ea', price: '$96.70', desc: 'High-efficiency 16x25x4 filter media' },
+          { id: 'j-3', name: '26-Gauge Galvanized Sheet Metal (36" x 96")', sku: 'P0101A', qty: '1 ea', price: '$26.65', desc: 'Flat sheet for custom transition ductwork' }
+        ],
+        truckRestock: [
+          { name: '1/2" Black Iron 90° Elbow', qty: '5 ea', price: '$4.30', bin: 'Gas Piping Kit' },
+          { name: '1/2" Black Iron Banded Coupling', qty: '5 ea', price: '$5.80', bin: 'Gas Piping Kit' },
+          { name: '1/2" Black Iron Pipe Cap', qty: '5 ea', price: '$4.30', bin: 'Gas Piping Kit' },
+          { name: '1/2" Black Iron Pipe Tee', qty: '2 ea', price: '$2.26', bin: 'Gas Piping Kit' },
+          { name: '1/2" Black Iron Ground Joint Union', qty: '2 ea', price: '$7.58', bin: 'Gas Piping Kit' },
+          { name: '1/2" x 12" Black Iron Pipe Nipple', qty: '1 ea', price: '$2.00', bin: 'Gas Piping Kit' },
+          { name: '3/4" PVC 90° Elbow (Slip x Slip)', qty: '5 ea', price: '$1.50', bin: 'PVC Drain Kit' },
+          { name: '3/4" PVC Street 90° Elbow (Slip x Spig)', qty: '5 ea', price: '$4.65', bin: 'PVC Drain Kit' },
+          { name: '3/4" PVC Male Adapter (MIPT x Slip)', qty: '5 ea', price: '$1.35', bin: 'PVC Drain Kit' },
+          { name: '3/4" PVC Tee (Slip x Slip x Slip)', qty: '5 ea', price: '$1.90', bin: 'PVC Drain Kit' },
+          { name: 'RectorSeal Arctic 616 Cold Weather PVC Cement (16oz)', qty: '1 ea', price: '$8.25', bin: 'PVC Drain Kit' },
+          { name: 'Malco #8 x 3/4" Zip Screws (500 Box)', qty: '1 pk', price: '$43.70', bin: 'Hardware, Fasteners & Sealants' },
+          { name: 'Clear 100% RTV Silicone (10.3 oz Tube)', qty: '2 ea', price: '$10.00', bin: 'Hardware, Fasteners & Sealants' },
+          { name: 'Full MC Acetylene Tank (10CF Swap)', qty: '1 ea', price: '$130.20', bin: 'Torches & Compressed Gases' },
+          { name: 'Empty MC Acetylene Tank Return (Credit)', qty: '-1 ea', price: '-$101.75', bin: 'Torches & Compressed Gases' }
+        ]
+      };
+
+      displayScannedReceiptReview();
+    }
+
+    function handleReceiptUpload(event) {
+      const files = Array.from(event.target.files);
+      if (!files || files.length === 0) return;
+
+      // In real field usage, send to /api/parse-receipt
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        fetch('/api/parse-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: e.target.result })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.parsed) {
+            const p = data.parsed;
+            pendingScannedReceipt = {
+              supplier: p.supplier || 'Johnstone Supply',
+              invNumber: p.inv_num || '#68214078.002',
+              poJob: p.job_name || 'PITCHER',
+              totalCost: p.total_cost || '$370.37',
+              jobItems: p.items.filter(x => x.type === 'job_specific'),
+              truckRestock: p.items.filter(x => x.type === 'truck_restock')
+            };
+            displayScannedReceiptReview();
+          } else {
+            loadJohnstoneJobSample();
+          }
+        })
+        .catch(() => {
+          loadJohnstoneJobSample();
+        });
+      };
+      reader.readAsDataURL(files[0]);
+    }
+
+    function displayScannedReceiptReview() {
+      if (!pendingScannedReceipt) return;
+
+      document.getElementById('review-supplier').innerText = pendingScannedReceipt.supplier;
+      document.getElementById('review-inv-num').innerText = pendingScannedReceipt.invNumber;
+      document.getElementById('review-po-job').innerText = `PO / Job: ${pendingScannedReceipt.poJob}`;
+      document.getElementById('review-total-cost').innerText = pendingScannedReceipt.totalCost;
+
+      // Render Job items
+      const jobList = document.getElementById('review-job-items-list');
+      jobList.innerHTML = '';
+      let jobSum = 0;
+      pendingScannedReceipt.jobItems.forEach(item => {
+        const val = parseFloat(item.price.replace('$', '')) || 0;
+        jobSum += val;
+        const row = document.createElement('div');
+        row.className = 'p-2.5 flex items-center justify-between text-xs';
+        row.innerHTML = `
+          <div>
+            <span class="font-bold text-slate-100 block">${item.name}</span>
+            <span class="text-[10px] text-purple-300">${item.qty} • SKU: ${item.sku}</span>
+          </div>
+          <span class="font-mono font-bold text-emerald-400">${item.price}</span>
+        `;
+        jobList.appendChild(row);
+      });
+      document.getElementById('review-job-total').innerText = `$${jobSum.toFixed(2)}`;
+
+      // Render Truck restock items
+      const truckList = document.getElementById('review-truck-items-list');
+      truckList.innerHTML = '';
+      pendingScannedReceipt.truckRestock.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'p-2 flex items-center justify-between text-xs';
+        row.innerHTML = `
+          <div>
+            <span class="font-medium text-slate-200 block">${item.name}</span>
+            <span class="text-[10px] text-blue-300">${item.qty} • Restocks: ${item.bin || 'Truck Stock'}</span>
+          </div>
+          <span class="font-mono text-slate-400 text-[11px]">${item.price}</span>
+        `;
+        truckList.appendChild(row);
+      });
+
+      document.getElementById('scanned-receipt-review').classList.remove('hidden');
+    }
+
+    function commitSmartReceipt() {
+      if (!pendingScannedReceipt) return;
+
+      // 1. Add job items to active loadout
+      pendingScannedReceipt.jobItems.forEach(it => {
+        if (!activeJobPickups.find(x => x.name === it.name)) {
+          activeJobPickups.push({
+            id: 'job-' + Date.now() + Math.random(),
+            name: it.name,
+            sku: it.sku,
+            price: it.price,
+            checked: false,
+            desc: it.desc || 'From ' + pendingScannedReceipt.supplier
+          });
+        }
+      });
+
+      // 2. Auto-replenish SPECIFIC truck items that match receipt line items!
+      const receiptDate = 'Nov 2';
+      let restockedCount = 0;
+
+      pendingScannedReceipt.truckRestock.forEach(recItem => {
+        const nameLower = recItem.name.toLowerCase();
+        STANDARD_TRUCK_BINS.forEach(b => {
+          b.items.forEach(binItem => {
+            const binLower = binItem.name.toLowerCase();
+            // Match keywords
+            if (
+              (nameLower.includes('elbow') && binLower.includes('elbow') && nameLower.includes('1/2') && binLower.includes('1/2')) ||
+              (nameLower.includes('coupling') && binLower.includes('coupling')) ||
+              (nameLower.includes('cap') && binLower.includes('cap')) ||
+              (nameLower.includes('tee') && binLower.includes('tee') && nameLower.includes('1/2') && binLower.includes('1/2')) ||
+              (nameLower.includes('union') && binLower.includes('union')) ||
+              (nameLower.includes('nipple') && binLower.includes('nipple')) ||
+              (nameLower.includes('3/4') && binLower.includes('3/4') && nameLower.includes('pvc') && binLower.includes('pvc')) ||
+              (nameLower.includes('malco') && binLower.includes('malco') && nameLower.includes('3/4') && binLower.includes('3/4')) ||
+              (nameLower.includes('silicone') && binLower.includes('silicone')) ||
+              (nameLower.includes('arctic') && binLower.includes('arctic')) ||
+              (nameLower.includes('acetylene') && binLower.includes('acetylene'))
+            ) {
+              binItem.status = 'stocked';
+              binItem.lastRestocked = `${receiptDate} (+${recItem.qty} Johnstone)`;
+              restockedCount++;
+            }
+          });
+        });
+      });
+
+      // 3. Save receipt history
+      receiptHistory.unshift({
+        id: 'rec-' + Date.now(),
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        supplier: pendingScannedReceipt.supplier,
+        invNumber: pendingScannedReceipt.invNumber,
+        total: pendingScannedReceipt.totalCost,
+        itemCount: pendingScannedReceipt.jobItems.length + pendingScannedReceipt.truckRestock.length
+      });
+
+      saveState();
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+      renderTruckBins();
+      renderReceiptHistory();
+
+      document.getElementById('scanned-receipt-review').classList.add('hidden');
+      pendingScannedReceipt = null;
+
+      alert(`✅ Receipt Processed!
+1. Added 3 Job-Specific items to Today\'s Loadout (Pitcher).
+2. Auto-restocked ${restockedCount} specific truck bin items (fittings, screws, cement, tank).
+3. Master catalog kept clean!`);
+
+      switchAppTab('bins');
+    }
+
+    function renderReceiptHistory() {
+      const container = document.getElementById('receipts-history-list');
+      container.innerHTML = '';
+      document.getElementById('receipt-history-count').innerText = `${receiptHistory.length} recorded`;
+
+      if (receiptHistory.length === 0) {
+        container.innerHTML = '<div class="p-3 text-center text-slate-500 text-xs">No receipts recorded yet.</div>';
+        return;
+      }
+
+      receiptHistory.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'p-3 flex items-center justify-between text-xs';
+        row.innerHTML = `
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-bold text-white">${r.supplier}</span>
+              <span class="text-[10px] font-mono text-slate-400">${r.invNumber}</span>
+            </div>
+            <span class="text-[10px] text-slate-400">${r.date} • ${r.itemCount} items</span>
+          </div>
+          <span class="font-mono font-bold text-emerald-400">${r.total}</span>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // --- 10. CATALOG MANAGER ---
+    // --- 10. CATALOG MANAGER WITH RESTORE OPTION ---
+    function renderCatalogManager() {
+      const container = document.getElementById('catalog-manager-container');
+      container.innerHTML = '';
+      const filter = (document.getElementById('catalog-search-input').value || '').toLowerCase();
+
+      const allParts = getAllParts();
+      let count = 0;
+
+      Object.values(allParts).forEach(item => {
+        if (filter && !item.name.toLowerCase().includes(filter) && !item.desc.toLowerCase().includes(filter)) {
+          return;
+        }
+
+        count++;
+        const isHidden = hiddenParts.includes(item.id);
+        const hasRealPhoto = !!customItemPhotos[item.id];
+
+        const row = document.createElement('div');
+        row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isHidden ? 'opacity-40 bg-red-950/10' : ''}`;
+
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5 flex-1 pr-2 cursor-pointer" onclick="openInspector('${item.id}')">
+            <span class="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs flex-shrink-0">
+              ${hasRealPhoto ? '📷' : '📦'}
+            </span>
+            <div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs font-semibold ${isHidden ? 'line-through text-slate-400' : 'text-white'}">${item.name}</span>
+                <span class="text-[9px] px-1 py-0.2 rounded font-bold bg-slate-800 text-slate-400">${item.qty}</span>
+                ${hasRealPhoto ? '<span class="text-[8px] px-1 py-0.2 rounded font-bold bg-emerald-500/20 text-emerald-300">Photo</span>' : ''}
+                ${isHidden ? '<span class="text-[8px] px-1.5 py-0.2 rounded font-bold bg-red-500/20 text-red-300 border border-red-500/30">Obsolete / Hidden</span>' : ''}
+              </div>
+              <span class="text-[10px] text-slate-400">${item.shelfLocation} • ${item.pkgType}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            ${isHidden 
+              ? `<button onclick="restoreItemToLoadout('${item.id}')" class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] spring">
+                  + Restore
+                </button>`
+              : `<button onclick="openInspector('${item.id}')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 text-[10px] font-bold spring">
+                  Inspect ›
+                </button>`
+            }
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // --- 11. PROFILE & MODAL CONTROLLERS ---
+    function openProfileModal() {
+      document.getElementById('modal-profile').classList.remove('opacity-0', 'pointer-events-none');
+    }
+    function closeProfileModal() {
+      document.getElementById('modal-profile').classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function selectProfile(p) {
+      currentProfile = p;
+      const labels = {
+        'full-system': 'Full Sys',
+        'mini-split': 'Mini-Split',
+        'ac-only': 'AC Only',
+        'furnace-only': 'Furnace',
+        'heatpump': 'Heat Pump'
+      };
+      document.getElementById('header-profile-badge').innerText = labels[p] || 'Profile';
+      
+      ['full-system', 'mini-split', 'ac-only', 'furnace-only', 'heatpump'].forEach(k => {
+        const btn = document.getElementById(`pbtn-${k}`);
+        if (k === p) {
+          btn.className = 'p-2.5 rounded-xl border border-emerald-500 bg-emerald-600 text-white font-bold text-left';
+        } else {
+          btn.className = 'p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 font-semibold text-left';
+        }
+      });
+
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+    }
+
+    function toggleNewCircuit(isChecked) {
+      isRunningNewCircuit = isChecked;
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+    }
+
+    function toggleReusingLineset(isReusing) {
+      isReusingLineset = isReusing;
+      if (isReusing) {
+        if (!activeJobPickups.find(x => x.name.includes('Rx11'))) {
+          activeJobPickups.push({
+            id: 'job-rx11',
+            name: 'Nu-Calgon Rx11-Flush Line Set Flush Kit',
+            sku: '4300-38',
+            price: '$68.00',
+            checked: false,
+            desc: 'Required when converting R-22 line set to R-410A / R-454B'
+          });
+        }
+      } else {
+        activeJobPickups = activeJobPickups.filter(x => !x.name.includes('Rx11'));
+      }
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+    }
+
+    function openJobberModal() {
+      document.getElementById('modal-jobber').classList.remove('opacity-0', 'pointer-events-none');
+    }
+    function closeJobberModal() {
+      document.getElementById('modal-jobber').classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function loadSampleJobberScreenshot() {
+      // Simulate Jobber line items from the 11/2 Pitcher job
+      const sampleParsed = {
+        title: 'American Standard Full System AC & Furnace',
+        subtitle: 'AC 13-SEER2 2.5-Ton • Furnace 60k 95% S9X1',
+        brand: 'American Standard',
+        profile: 'full-system',
+        tonnage: 2.5,
+        ac_seer: '13-SEER2',
+        furnace_eff: '95%',
+        furnace_model: 'S9X1',
+        has_new_lines: true,
+        has_removal: true,
+        is_condensing_90plus: true,
+        specs: {
+          lineset: '3/8" x 3/4" x 50ft',
+          lineset_note: 'Matched to 2.5-Ton',
+          electrical: '30A 2-Pole Breaker + 30A Dual Fuses',
+          venting: '2" Sch 40 PVC (95% Condensing • No B-Vent)',
+          pad: '36" x 36" DiversiTech Composite Pad'
+        }
+      };
+
+      renderJobberRecipeConfirmation(sampleParsed);
+    }
+
+    function handleJobberImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const statusEl = document.getElementById('jobber-scan-status');
+      if (statusEl) statusEl.classList.remove('hidden');
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        fetch('/api/parse-jobber', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: e.target.result })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (statusEl) statusEl.classList.add('hidden');
+          if (data.success && data.parsed) {
+            renderJobberRecipeConfirmation(data.parsed);
+          } else {
+            loadSampleJobberScreenshot();
+          }
+        })
+        .catch(() => {
+          if (statusEl) statusEl.classList.add('hidden');
+          loadSampleJobberScreenshot();
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function openAddCustomItemModal(type) {
+      document.getElementById('modal-add-part').classList.remove('opacity-0', 'pointer-events-none');
+    }
+    function closeAddCustomItemModal() {
+      document.getElementById('modal-add-part').classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function saveCustomPart() {
+      const name = document.getElementById('add-part-name').value.trim();
+      const qty = document.getElementById('add-part-qty').value.trim() || '1 ea';
+      const bin = document.getElementById('add-part-bin').value.trim() || 'General Stock';
+
+      if (!name) return;
+
+      const id = 'custom-' + Date.now();
+      DEFAULT_PARTS_CATALOG[id] = {
+        id: id,
+        name: name,
+        qty: qty,
+        group: 'refrigeration',
+        shelfLocation: bin,
+        pkgType: 'Custom Part',
+        desc: 'Added for Truck 4',
+        counterSay: name,
+        brands: 'Custom',
+        pkgNotes: 'Custom added part',
+        connect: 'Installed as needed',
+        gotcha: 'Verify application',
+        profiles: ['full-system', 'mini-split', 'ac-only', 'furnace-only', 'heatpump'],
+        boxColor: '#1e293b',
+        accentColor: '#38bdf8',
+        badgeText: 'CUSTOM'
+      };
+
+      saveState();
+      renderCatalogManager();
+      closeAddCustomItemModal();
+      alert('Saved custom part to Truck 4 catalog!');
+    }
+
+    function openCompleteJobModal() {
+      const container = document.getElementById('leftover-items-list');
+      container.innerHTML = '';
+
+      ['lineset', 'disconnect', 'whip', 'safet-switch', 'condenser-pad'].forEach(id => {
+        const item = DEFAULT_PARTS_CATALOG[id];
+        if (!item) return;
+        const row = document.createElement('label');
+        row.className = 'flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer text-xs';
+        row.innerHTML = `
+          <span class="text-slate-200 font-medium">${item.name}</span>
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] text-slate-400">Unused?</span>
+            <input type="checkbox" data-id="${id}" class="w-4 h-4 accent-amber-500 rounded">
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      // Quick-Check for truck consumables & fittings
+      const consHeader = document.createElement('div');
+      consHeader.className = 'pt-3 pb-1 border-t border-slate-800 text-[11px] font-bold text-slate-300';
+      consHeader.innerText = 'Did you run low on standard fittings or screws today?';
+      container.appendChild(consHeader);
+
+      const quickItems = [
+        { binId: 'bin-gas-piping', itemId: 'gas-elbow-90', label: '1/2" Gas 90s' },
+        { binId: 'bin-hardware', itemId: 'screw-malco-34', label: '3/4" Zip Screws' },
+        { binId: 'bin-pvc-drain', itemId: 'pvc-elbow-90', label: '3/4" PVC 90s' },
+        { binId: 'bin-hardware', itemId: 'sealant-silicone', label: 'Clear Silicone' },
+        { binId: 'bin-torches-tanks', itemId: 'gas-tank-mc', label: 'MC Acetylene' }
+      ];
+
+      const chipRow = document.createElement('div');
+      chipRow.className = 'flex flex-wrap gap-1.5 pt-1';
+      quickItems.forEach(q => {
+        const bin = STANDARD_TRUCK_BINS.find(b => b.id === q.binId);
+        const it = bin ? bin.items.find(x => x.id === q.itemId) : null;
+        const isLow = it && (it.status === 'low' || it.status === 'empty');
+        
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold spring ' + (isLow ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300 border border-slate-700');
+        chip.innerText = (isLow ? '⚠️ Low: ' : '+ Low: ') + q.label;
+        chip.onclick = () => {
+          if (it) {
+            it.status = it.status === 'low' ? 'stocked' : 'low';
+            saveState();
+            openCompleteJobModal();
+          }
+        };
+        chipRow.appendChild(chip);
+      });
+      container.appendChild(chipRow);
+
+      document.getElementById('modal-leftover').classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function closeCompleteJobModal() {
+      document.getElementById('modal-leftover').classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function finalizeJobWrapUp() {
+      loadedState = {};
+      activeJobPickups = [];
+      saveState();
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+      closeCompleteJobModal();
+      alert('🎉 Job #8429 Complete! Loadout reset for tomorrow.');
+    }
+
+    
+    function openCounterRepModal() {
+      const container = document.getElementById('counter-rep-items-list');
+      container.innerHTML = '';
+
+      const allItems = getAllBinItems();
+      const shortages = allItems.filter(x => x.status === 'low' || x.status === 'empty');
+
+      if (shortages.length === 0) {
+        container.innerHTML = '<div class="p-4 text-center text-slate-400 text-xs">No items currently short on Truck 4!</div>';
+      } else {
+        shortages.forEach(it => {
+          const row = document.createElement('div');
+          row.className = 'p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1';
+          row.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-amber-300 uppercase">${it.binName}</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">Qty: ${it.stdPack}</span>
+            </div>
+            <div class="text-sm font-black text-white">${it.name}</div>
+            <div class="text-[11px] font-mono text-blue-300 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+              Counter Say: "${it.counterSay}"
+            </div>
+            <div class="text-[10px] text-slate-400">SKU: ${it.sku}</div>
+          `;
+          container.appendChild(row);
+        });
+      }
+
+      document.getElementById('modal-counter-rep').classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function closeCounterRepModal() {
+      document.getElementById('modal-counter-rep').classList.add('opacity-0', 'pointer-events-none');
+    }
+
+    function markAllShortagesRestocked() {
+      const today = 'Nov ' + new Date().getDate();
+      STANDARD_TRUCK_BINS.forEach(b => {
+        b.items.forEach(it => {
+          if (it.status === 'low' || it.status === 'empty') {
+            it.status = 'stocked';
+            it.lastRestocked = 'Restocked today (' + today + ')';
+          }
+        });
+      });
+      saveState();
+      renderTruckBins();
+      closeCounterRepModal();
+      alert('✅ All truck shortages marked restocked!');
+    }
+
+    // Run on startup
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+
+  <!-- FLOATING DEBUG PILL FOR IPHONE TROUBLESHOOTING -->
+  <button onclick="toggleDebugOverlay()" class="fixed bottom-24 right-3 z-50 px-3 py-1.5 rounded-full bg-emerald-600 border border-emerald-400 text-white font-bold text-xs shadow-2xl flex items-center gap-1.5 spring active:scale-95">
+    <span>🐞</span>
+    <span>Debug</span>
+  </button>
+
+  <!-- ON-SCREEN MOBILE CONSOLE OVERLAY -->
+  <div id="debug-mobile-overlay" class="hidden fixed inset-x-2 bottom-20 z-50 max-h-72 bg-slate-950/95 border border-slate-800 rounded-2xl shadow-2xl p-3 flex flex-col text-xs backdrop-blur-md">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="font-bold text-white text-[11px]">Phone Debug Console</span>
+        <span class="text-[9px] text-slate-400">(Streaming to Mac)</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="localDebugLogs = []; renderOnScreenLogs();" class="text-[10px] text-slate-400 underline">Clear</button>
+        <button onclick="toggleDebugOverlay()" class="text-xs text-slate-400 hover:text-white">✕</button>
+      </div>
+    </div>
+    <div id="debug-log-list" class="flex-1 overflow-y-auto ios-scroll space-y-1 max-h-52 pr-1">
+      <div class="text-[10px] text-slate-500 font-mono">Listening for tap events & errors...</div>
+    </div>
+  </div>
+
+
+  <!-- ========================================================= -->
+  <!-- MODAL: SHOW COUNTER REP (HIGH CONTRAST RESTOCK PICKUP)   -->
+  <!-- ========================================================= -->
+  <div id="modal-counter-rep" class="sheet fixed inset-0 bg-black/85 z-50 flex flex-col justify-end opacity-0 pointer-events-none">
+    <div onclick="closeCounterRepModal()" class="flex-1"></div>
+    <div class="bg-slate-900 border-t border-amber-500/40 rounded-t-[28px] p-5 shadow-2xl max-h-[90%] overflow-y-auto ios-scroll pb-safe">
+      <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-3"></div>
+
+      <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+        <div>
+          <span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Parts Counter Cheatsheet</span>
+          <h3 class="text-base font-bold text-white">Truck 4 Restock Items</h3>
+        </div>
+        <button onclick="closeCounterRepModal()" class="w-8 h-8 rounded-full bg-slate-800 text-xs text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <p class="text-[11px] text-slate-300 mb-3">Hold up to the counter rep at Johnstone Supply or Duncan Supply:</p>
+
+      <div id="counter-rep-items-list" class="space-y-2 mb-4"></div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="markAllShortagesRestocked()" class="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs spring shadow-md">
+          ✅ Mark All Restocked
+        </button>
+        <button onclick="closeCounterRepModal(); switchAppTab('receipts');" class="py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs spring shadow-md">
+          📷 Scan Receipt Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========================================================= -->
+  <!-- MODAL: QUICK ADD ITEM & LEARN FOR FUTURE SYSTEMS          -->
+  <!-- ========================================================= -->
+  <div id="modal-quick-add" class="sheet fixed inset-0 bg-black/80 z-50 flex flex-col justify-end opacity-0 pointer-events-none">
+    <div onclick="closeQuickAddLoadoutItemModal()" class="flex-1"></div>
+    <div class="bg-slate-900 border-t border-blue-500/40 rounded-t-[28px] p-5 shadow-2xl max-h-[92%] overflow-y-auto ios-scroll pb-safe">
+      <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-3"></div>
+      
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Field Learning Engine</span>
+          <h3 class="text-sm font-bold text-white">Add Missing Item to Loadout</h3>
+        </div>
+        <button onclick="closeQuickAddLoadoutItemModal()" class="w-7 h-7 rounded-full bg-slate-800 text-xs text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs mb-4">
+        <!-- Common Fast Suggestions for Wires & Accessories -->
+        <div>
+          <label class="block text-slate-400 text-[10px] font-bold uppercase mb-1">Quick Suggestions (Tap to select):</label>
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" onclick="selectQuickSuggestion('18/8 Solid Copper Thermostat Wire (50ft)', 'electrical', '1 Coil')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] spring">
+              ⚡ 18/8 Stat Wire
+            </button>
+            <button type="button" onclick="selectQuickSuggestion('18/5 Solid Copper Thermostat Wire (50ft)', 'electrical', '1 Coil')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] spring">
+              ⚡ 18/5 Stat Wire
+            </button>
+            <button type="button" onclick="selectQuickSuggestion('8/2 with Ground Romex Wire (50ft)', 'electrical', '1 Coil')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] spring">
+              ⚡ 8/2 Romex (Black)
+            </button>
+            <button type="button" onclick="selectQuickSuggestion('DiversiTech CP-22 Condensate Pump', 'refrigeration', '1 Unit')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] spring">
+              💧 CP-22 Drain Pump
+            </button>
+            <button type="button" onclick="selectQuickSuggestion('RectorSeal Wet Switch Flood Detector', 'refrigeration', '1 Sensor')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] spring">
+              💧 Wet Switch Sensor
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 text-[10px] font-bold mb-1">Item Name & Specification</label>
+          <input type="text" id="quick-add-name" placeholder="e.g. 18/8 Thermostat Wire (50ft Coil)" class="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs outline-none focus:border-blue-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-400 text-[10px] font-bold mb-1">Standard Quantity</label>
+            <input type="text" id="quick-add-qty" placeholder="e.g. 1 Coil (50ft)" class="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs">
+          </div>
+          <div>
+            <label class="block text-slate-400 text-[10px] font-bold mb-1">Loadout Category</label>
+            <select id="quick-add-category" class="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 text-xs">
+              <option value="electrical">⚡ Electrical & Wiring</option>
+              <option value="refrigeration">🧪 Refrigeration, Pad & Piping</option>
+              <option value="equipment">❄️ Major Unit Requisites</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- The "Remember for Future Systems" Learning Toggle -->
+        <div class="p-3 rounded-2xl bg-gradient-to-r from-blue-950/60 to-slate-950 border border-blue-500/30">
+          <label class="flex items-start gap-2.5 cursor-pointer">
+            <input type="checkbox" id="quick-add-remember" checked class="w-4 h-4 mt-0.5 accent-blue-500 rounded cursor-pointer flex-shrink-0">
+            <div>
+              <span class="font-bold text-white block text-xs" id="quick-add-remember-label">Always include on future Full System jobs</span>
+              <p class="text-[10px] text-slate-400 mt-0.5">Learns your company standard so nobody has to manually remember or add it next time.</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <button onclick="submitQuickAddLoadoutItem()" class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs spring shadow-lg flex items-center justify-center gap-1.5">
+        <span>✅</span>
+        <span>Add to Loadout & Save Standard</span>
+      </button>
+    </div>
+  </div>
+
+</body>
+</html>
