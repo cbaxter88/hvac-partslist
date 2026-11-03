@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Truck 4 • Smart Loadout & Bin Inventory</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#090d16">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#0f172a">
   <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
   <style>
     @supports (-webkit-touch-callout: none) {
@@ -22,19 +22,19 @@
 <body class="bg-slate-950 text-slate-100 antialiased h-[100dvh] overflow-hidden flex flex-col selection:bg-emerald-500 selection:text-white font-sans">
 
   <!-- ========================================================= -->
-  <!-- SLIM HEADER (48px - Screen-efficient for Mobile)           -->
+  <!-- SOLID NOTCH-SAFE HEADER (Crisp & High Contrast on Mobile)  -->
   <!-- ========================================================= -->
-  <header class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3.5 pb-2.5 shadow-md" style="padding-top: max(env(safe-area-inset-top), 16px);">
+  <header class="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 px-3.5 pb-2.5 shadow-md" style="padding-top: calc(env(safe-area-inset-top, 0px) + 12px);">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
         <div>
           <div class="flex items-center gap-1.5">
-            <h1 class="text-xs font-bold tracking-tight text-white">Truck 4</h1>
+            <h1 class="text-sm font-black tracking-tight text-white">Truck 4</h1>
             <span class="text-[10px] text-slate-500">•</span>
-            <span id="header-active-job" class="text-xs font-semibold text-emerald-400">Job #8429 (Pitcher)</span>
+            <span id="header-active-job" class="text-xs font-bold text-emerald-400">Job #8429 (Pitcher)</span>
           </div>
-          <p id="header-active-equip" class="text-[10px] text-slate-400 line-clamp-1">American Standard 2.5T AC + 95% S9X1 Furnace</p>
+          <p id="header-active-equip" class="text-[11px] text-slate-300 line-clamp-1">American Standard 2.5T AC + 95% S9X1 Furnace</p>
         </div>
       </div>
       
@@ -59,7 +59,7 @@
   <!-- ========================================================= -->
   <div id="tab-view-loadout" class="flex-1 min-h-0 flex flex-col">
     <!-- Progress & Action Strip -->
-    <div class="bg-slate-900/90 border-b border-slate-800 px-3.5 py-2 flex items-center justify-between">
+    <div class="bg-slate-900 border-b border-slate-800 px-3.5 py-2 flex items-center justify-between">
       <div>
         <div class="flex items-center gap-1.5">
           <span id="loadout-progress-text" class="text-xs font-bold text-white">0 of 0 Loaded</span>
