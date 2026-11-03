@@ -135,18 +135,6 @@
         <span class="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 font-bold">Learns for Future</span>
       </button>
 
-      <!-- SITE OBSTACLE ADD-ONS -->
-      <div id="sec-site-addons" class="hidden border border-amber-500/30 rounded-2xl overflow-hidden bg-amber-950/20">
-        <div class="px-3.5 py-2 bg-amber-900/30 flex items-center justify-between border-b border-amber-500/20">
-          <div class="flex items-center gap-1.5">
-            <span class="text-xs">⚠️</span>
-            <span class="text-xs font-bold text-amber-300">Site Conditions Active</span>
-          </div>
-          <button onclick="clearSiteAddons()" class="text-[10px] text-amber-400 underline">Clear</button>
-        </div>
-        <div id="site-addons-container" class="divide-y divide-amber-500/10"></div>
-      </div>
-
     </main>
   </div>
 
@@ -271,8 +259,8 @@
           <h2 class="text-xs font-bold text-white uppercase tracking-wider">Truck 4 Master Catalog</h2>
           <p class="text-[11px] text-slate-400">Tap any part for real packaging photo & supply counter slang</p>
         </div>
-        <button onclick="openAddCustomItemModal('general')" class="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs spring shadow-sm">
-          + Add Part
+        <button onclick="openQuickAddLoadoutItemModal()" class="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs spring shadow-sm">
+          + Add Item
         </button>
       </div>
 
@@ -1006,7 +994,6 @@
     let currentTab = 'loadout';
     let currentProfile = 'full-system';
     let isRunningNewCircuit = true;
-    let isReusingLineset = false;
     let loadedState = {};
     let customItemPhotos = {}; // id -> base64/url
     let activeJobPickups = [
@@ -1014,7 +1001,6 @@
       { id: 'job-p2', name: '16"x25" Honeywell Media Air Filter (F100F)', sku: 'F100F1625', price: '$96.70', checked: false, desc: '16x25x4 high-efficiency media cleaner cabinet' },
       { id: 'job-p3', name: '26-Gauge Galvanized Sheet Metal (36" x 96")', sku: 'P0101A', price: '$26.65', checked: false, desc: 'Flat sheet for custom basement supply transitions' }
     ];
-    let customParts = {};
     let receiptHistory = [];
     let currentActiveInspectId = null;
 
@@ -1477,28 +1463,6 @@
       alert(`✅ Added "${name}" to Today's Loadout!` + (remember ? `\nLearned as permanent company standard for ${currentProfile} jobs.` : ''));
     }
 
-    // Teach from Receipt Discovery
-    function learnItemFromReceipt(name, category, qty) {
-      if (!learnedProfileItems[currentProfile]) learnedProfileItems[currentProfile] = [];
-      const exists = learnedProfileItems[currentProfile].find(x => x.name.toLowerCase() === name.toLowerCase());
-      if (!exists) {
-        learnedProfileItems[currentProfile].push({
-          id: 'receipt-learned-' + Date.now(),
-          name: name,
-          qty: qty || '1 Unit',
-          category: category || 'electrical',
-          badge: 'Learned from Receipt',
-          desc: 'Auto-added from supply house invoice'
-        });
-        saveLearnedRecipes();
-        initHiddenParts();
-      initLearnedRecipes();
-      renderLoadoutView();
-        alert(`✅ Learned from invoice! "${name}" will now always appear on future ${currentProfile} loadouts.`);
-      }
-    }
-
-    
     // --- LOADOUT ITEM REMOVAL & OBSOLETE PART MANAGEMENT ---
     let hiddenParts = [];
     let sessionHiddenItems = [];
@@ -1985,7 +1949,7 @@
     // --- 7. TRUCK BINS (TRAFFIC LIGHTS) ---
     // --- 7. TRUCK BINS (ITEM-LEVEL STATUS & AUTO COUNTER SHORTAGE RUN) ---
     function getAllParts() {
-      return { ...DEFAULT_PARTS_CATALOG, ...customParts };
+      return DEFAULT_PARTS_CATALOG;
     }
 
     function getAllBinItems() {
@@ -2600,7 +2564,6 @@
     }
 
     function toggleReusingLineset(isReusing) {
-      isReusingLineset = isReusing;
       if (isReusing) {
         if (!activeJobPickups.find(x => x.name.includes('Rx11'))) {
           activeJobPickups.push({
@@ -2684,44 +2647,36 @@
       reader.readAsDataURL(file);
     }
 
-    function openAddCustomItemModal(type) {
-      document.getElementById('modal-add-part').classList.remove('opacity-0', 'pointer-events-none');
-    }
-    function closeAddCustomItemModal() {
-      document.getElementById('modal-add-part').classList.add('opacity-0', 'pointer-events-none');
-    }
+    function parseJobberTextManual() {
+      const textEl = document.getElementById('jobber-raw-text');
+      const text = textEl ? textEl.value.trim() : '';
+      if (!text) {
+        alert('Please paste or type Jobber line items text first.');
+        return;
+      }
 
-    function saveCustomPart() {
-      const name = document.getElementById('add-part-name').value.trim();
-      const qty = document.getElementById('add-part-qty').value.trim() || '1 ea';
-      const bin = document.getElementById('add-part-bin').value.trim() || 'General Stock';
+      const statusEl = document.getElementById('jobber-scan-status');
+      if (statusEl) statusEl.classList.remove('hidden');
 
-      if (!name) return;
-
-      const id = 'custom-' + Date.now();
-      DEFAULT_PARTS_CATALOG[id] = {
-        id: id,
-        name: name,
-        qty: qty,
-        group: 'refrigeration',
-        shelfLocation: bin,
-        pkgType: 'Custom Part',
-        desc: 'Added for Truck 4',
-        counterSay: name,
-        brands: 'Custom',
-        pkgNotes: 'Custom added part',
-        connect: 'Installed as needed',
-        gotcha: 'Verify application',
-        profiles: ['full-system', 'mini-split', 'ac-only', 'furnace-only', 'heatpump'],
-        boxColor: '#1e293b',
-        accentColor: '#38bdf8',
-        badgeText: 'CUSTOM'
-      };
-
-      saveState();
-      renderCatalogManager();
-      closeAddCustomItemModal();
-      alert('Saved custom part to Truck 4 catalog!');
+      fetch('/api/parse-jobber', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (statusEl) statusEl.classList.add('hidden');
+        if (data.success && data.parsed) {
+          renderJobberRecipeConfirmation(data.parsed);
+        } else {
+          alert('No HVAC equipment parsed from text. Try pasting equipment names or model numbers directly.');
+        }
+      })
+      .catch(err => {
+        if (statusEl) statusEl.classList.add('hidden');
+        console.error('Jobber parse error:', err);
+        alert('Network error connecting to Jobber parser API.');
+      });
     }
 
     function openCompleteJobModal() {
