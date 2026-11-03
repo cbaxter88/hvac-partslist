@@ -587,18 +587,30 @@
 
         <!-- Manual Model Type & Search -->
         <div class="flex items-center gap-2">
-          <input type="text" id="spec-custom-search-input" placeholder="Type Model # (e.g. 4A7A4030, S9X1, BOVA-36)" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500 font-mono outline-none focus:border-blue-500">
+          <input type="text" id="spec-custom-search-input" onkeydown="if(event.key==='Enter'){event.preventDefault();fetchSpecsForManualInput();}" placeholder="Type Model # (e.g. S9X1, 4A7A, 59TP6, BOVA)" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500 font-mono outline-none focus:border-blue-500">
           <button onclick="fetchSpecsForManualInput()" class="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs spring flex-shrink-0 flex items-center gap-1.5 shadow-md shadow-blue-900/40">
             <span>🔍</span>
             <span>Search</span>
           </button>
         </div>
 
+        <!-- Quick Model Shortcuts -->
+        <div class="flex flex-wrap gap-1.5 pt-0.5 items-center">
+          <span class="text-[10px] text-slate-500 font-bold">Quick:</span>
+          <button type="button" onclick="quickSearchModel('S9X1')" class="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-mono spring">🔥 S9X1</button>
+          <button type="button" onclick="quickSearchModel('4A7A')" class="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-mono spring">❄️ 4A7A</button>
+          <button type="button" onclick="quickSearchModel('59TP6')" class="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-mono spring">💨 59TP6</button>
+          <button type="button" onclick="quickSearchModel('BOVA-36')" class="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-mono spring">⚡ BOVA</button>
+          <button type="button" onclick="quickSearchModel('EL296')" class="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-mono spring">🔥 EL296</button>
+          <button type="button" onclick="quickSearchModel('GM9C')" class="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-mono spring">🔥 GM9C</button>
+          <button type="button" onclick="quickSearchModel('R96V')" class="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-mono spring">🔥 R96V</button>
+        </div>
+
         <!-- Camera Button to Snap Rating Plate or Box Code -->
         <div class="flex items-center gap-2">
           <label class="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer spring shadow">
             <span class="text-sm">📷</span>
-            <span>Snap Rating Plate / Box Code</span>
+            <span>Snap Manual Cover or Rating Plate</span>
             <input type="file" accept="image/*" capture="environment" onchange="handleModelPlatePhotoUpload(event)" class="hidden">
           </label>
         </div>
@@ -610,7 +622,7 @@
             <div>
               <span class="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
                 <span>✓</span>
-                <span>Rating Plate Attached</span>
+                <span id="spec-plate-status-text">Manual / Plate Attached</span>
               </span>
               <span id="spec-plate-ocr-model" class="text-[11px] font-mono font-bold text-white block mt-0.5"></span>
             </div>
@@ -620,10 +632,15 @@
       </div>
 
       <!-- Action: Open Official Manual PDF -->
-      <div class="mb-4">
+      <div class="mb-4 space-y-2">
         <a id="spec-modal-pdf-btn" href="#" target="_blank" rel="noopener noreferrer" class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-950/40 spring">
           <span class="text-base">📖</span>
           <span id="spec-modal-pdf-label">Open Official Install Manual (PDF)</span>
+          <span class="text-xs opacity-75">↗</span>
+        </a>
+        <a id="spec-modal-google-btn" href="#" target="_blank" rel="noopener noreferrer" class="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-2 spring">
+          <span>🔍</span>
+          <span id="spec-modal-google-label">Search on Google / ManualsLib (PDF)</span>
           <span class="text-xs opacity-75">↗</span>
         </a>
       </div>
@@ -1179,7 +1196,7 @@
       document.getElementById('spec-modal-brand').innerText = s.brand || 'OEM';
       document.getElementById('spec-modal-cat').innerText = s.category || 'Equipment';
       document.getElementById('spec-modal-title').innerText = s.model_name || fallbackName || 'Equipment Specs';
-      document.getElementById('spec-modal-sub').innerText = s.is_exact_match ? 'Verified Manufacturer Technical Data' : 'Calculated Universal Trade Specifications';
+      document.getElementById('spec-modal-sub').innerText = s.is_exact_match ? '✅ Verified Manufacturer Technical Data' : 'Calculated Universal Trade Specifications';
       
       document.getElementById('spec-modal-mopd').innerText = s.mopd || 'Refer to rating plate';
       document.getElementById('spec-modal-mca').innerText = s.mca || 'See manual';
@@ -1194,19 +1211,39 @@
 
       const pdfBtn = document.getElementById('spec-modal-pdf-btn');
       const pdfLabel = document.getElementById('spec-modal-pdf-label');
-      pdfBtn.href = s.manual_url || s.google_search_url;
-      pdfLabel.innerText = s.is_exact_match ? `Open Official ${s.brand || 'OEM'} Manual (PDF)` : `Search & Open ${fallbackName || 'Unit'} Manual (PDF)`;
+      if (pdfBtn) {
+        pdfBtn.href = s.manual_url || s.google_search_url;
+      }
+      if (pdfLabel) {
+        pdfLabel.innerText = s.is_exact_match ? `Open Official ${s.brand || 'OEM'} Manual (PDF)` : `Open ${fallbackName || 'Equipment'} Manual (PDF)`;
+      }
+
+      const googleBtn = document.getElementById('spec-modal-google-btn');
+      const googleLabel = document.getElementById('spec-modal-google-label');
+      if (googleBtn) {
+        googleBtn.href = s.google_search_url || s.manual_url;
+      }
+      if (googleLabel) {
+        googleLabel.innerText = `Search Google / ManualsLib for ${s.brand || fallbackName || 'Equipment'} PDF`;
+      }
+    }
+
+    function quickSearchModel(m) {
+      document.getElementById('spec-custom-search-input').value = m;
+      fetchSpecsForManualInput();
     }
 
     function openEquipmentSpecsModal(equipId, equipName, modelSearch) {
       currentSpecTarget = { id: equipId, name: equipName, search: modelSearch || equipName };
       
       const modal = document.getElementById('modal-equipment-specs');
-      document.getElementById('spec-modal-title').innerText = equipName || 'Equipment Specs';
-      document.getElementById('spec-modal-brand').innerText = 'Loading...';
+      document.getElementById('spec-modal-title').innerText = modelSearch || equipName || 'Equipment Specs';
+      document.getElementById('spec-modal-brand').innerText = 'Searching...';
       document.getElementById('spec-modal-cat').innerText = 'HVAC Unit';
       document.getElementById('spec-modal-sub').innerText = 'Querying manufacturer product data & installation manual...';
       document.getElementById('spec-custom-search-input').value = modelSearch || equipName || '';
+
+      const spinner = document.getElementById('spec-scan-spinner');
 
       // Check if we already have an attached rating plate photo for this item
       const attached = equipmentDataPlates[equipId];
@@ -1224,6 +1261,7 @@
       const rec = activeJobberRecipe || {};
       const payload = {
         query: modelSearch || equipName,
+        model: modelSearch || '',
         brand: rec.brand || '',
         tonnage: rec.tonnage || 2.5,
         furnace_btu: rec.furnace_btu || '60k',
@@ -1237,17 +1275,19 @@
       })
       .then(res => res.json())
       .then(data => {
+        if (spinner) spinner.classList.add('hidden');
         if (data.success && data.specs) {
-          applySpecsToModal(data.specs, equipName);
+          applySpecsToModal(data.specs, modelSearch || equipName);
         }
       })
       .catch(err => {
+        if (spinner) spinner.classList.add('hidden');
         const queryTerm = (modelSearch || equipName || 'HVAC').trim();
-        const googleUrl = 'https://www.google.com/search?q=' + encodeURIComponent(queryTerm + ' installation manual filetype:pdf');
+        const googleUrl = 'https://www.google.com/search?q=' + encodeURIComponent(queryTerm + ' installation manual pdf');
         const fallbackSpecs = {
           brand: rec.brand || 'OEM',
           category: 'Equipment',
-          model_name: equipName || queryTerm,
+          model_name: queryTerm,
           is_exact_match: false,
           mopd: rec.tonnage && rec.tonnage > 3.5 ? '50A 2-Pole Breaker' : (currentProfile === 'furnace-only' ? '15A 1-Pole Breaker' : '30A-40A Breaker'),
           mca: currentProfile === 'furnace-only' ? '8.5A - 11.5A' : '18.2A - 24.0A',
@@ -1261,7 +1301,7 @@
           google_search_url: googleUrl
         };
         applySpecsToModal(fallbackSpecs, queryTerm);
-        document.getElementById('spec-modal-sub').innerText = 'Field Mode • Direct Web PDF Manual Ready';
+        document.getElementById('spec-modal-sub').innerText = 'Field Search Ready • Tap below to open manual';
       });
     }
 
@@ -1271,7 +1311,15 @@
 
     function fetchSpecsForManualInput() {
       const q = document.getElementById('spec-custom-search-input').value.trim();
-      if (!q) return;
+      if (!q) {
+        alert('Please type an HVAC model number first (e.g. S9X1, 4A7A, 59TP6, BOVA).');
+        return;
+      }
+      const spinner = document.getElementById('spec-scan-spinner');
+      if (spinner) {
+        spinner.innerText = '🔍 Pulling specs & manual for ' + q + '...';
+        spinner.classList.remove('hidden');
+      }
       openEquipmentSpecsModal(currentSpecTarget ? currentSpecTarget.id : 'custom', q, q);
     }
 
@@ -1280,51 +1328,55 @@
       if (!file) return;
 
       const spinner = document.getElementById('spec-scan-spinner');
-      if (spinner) spinner.classList.remove('hidden');
+      if (spinner) {
+        spinner.innerText = '📷 Compressing & Scanning with Vision OCR...';
+        spinner.classList.remove('hidden');
+      }
 
       const reader = new FileReader();
       reader.onload = function(e) {
-        const dataUrl = e.target.result;
+        compressImageToDataUrl(e.target.result, function(compressedUrl) {
+          fetch('/api/scan-model-plate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: compressedUrl })
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (spinner) spinner.classList.add('hidden');
+            if (data.success) {
+              const detectedModel = data.model || '';
+              if (detectedModel) {
+                document.getElementById('spec-custom-search-input').value = detectedModel;
+              }
 
-        fetch('/api/scan-model-plate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: dataUrl })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (spinner) spinner.classList.add('hidden');
-          if (data.success) {
-            const detectedModel = data.model || '';
-            if (detectedModel) {
-              document.getElementById('spec-custom-search-input').value = detectedModel;
+              // Save preview
+              const targetId = currentSpecTarget ? currentSpecTarget.id : 'eq-unit';
+              equipmentDataPlates[targetId] = {
+                photo: compressedUrl,
+                model: detectedModel
+              };
+              saveEquipmentDataPlates();
+
+              document.getElementById('spec-plate-thumb').src = compressedUrl;
+              document.getElementById('spec-plate-ocr-model').innerText = detectedModel ? `Model: ${detectedModel}` : 'Photo Attached';
+              document.getElementById('spec-plate-photo-preview').classList.remove('hidden');
+
+              if (data.specs) {
+                applySpecsToModal(data.specs, detectedModel || (currentSpecTarget ? currentSpecTarget.name : 'Equipment'));
+              }
+
+              sendTelemetry('ACTION', 'DATA_PLATE_CAPTURED', { model: detectedModel });
+              alert(`✅ Scanned Rating Plate / Manual!` + (detectedModel ? `\nDetected Model: ${detectedModel}\nSpecs & manual loaded.` : '\nPhoto attached to equipment card.'));
+            } else {
+              alert('Could not detect model text from image. Please enter model number manually.');
             }
-
-            // Save preview
-            const targetId = currentSpecTarget ? currentSpecTarget.id : 'eq-unit';
-            equipmentDataPlates[targetId] = {
-              photo: dataUrl,
-              model: detectedModel
-            };
-            saveEquipmentDataPlates();
-
-            document.getElementById('spec-plate-thumb').src = dataUrl;
-            document.getElementById('spec-plate-ocr-model').innerText = detectedModel ? `Model: ${detectedModel}` : 'Photo Attached';
-            document.getElementById('spec-plate-photo-preview').classList.remove('hidden');
-
-            if (data.specs) {
-              applySpecsToModal(data.specs, detectedModel || (currentSpecTarget ? currentSpecTarget.name : 'Equipment'));
-            }
-
-            sendTelemetry('ACTION', 'DATA_PLATE_CAPTURED', { model: detectedModel });
-            alert(`✅ Scanned Rating Plate!` + (detectedModel ? `\nDetected Model: ${detectedModel}\nSpecs & manual loaded.` : '\nPhoto attached to equipment card.'));
-          } else {
-            alert('Could not detect model text from image. Please enter model number manually.');
-          }
-        })
-        .catch(err => {
-          if (spinner) spinner.classList.add('hidden');
-          alert('Error uploading photo. Please try again.');
+          })
+          .catch(err => {
+            if (spinner) spinner.classList.add('hidden');
+            console.error('Scan error:', err);
+            alert('Error scanning photo. Please try again.');
+          });
         });
       };
       reader.readAsDataURL(file);
@@ -2322,7 +2374,7 @@
       const img = new Image();
       img.onload = function() {
         const canvas = document.createElement('canvas');
-        const maxDim = 800;
+        const maxDim = 1200;
         let w = img.width;
         let h = img.height;
         if (w > h && w > maxDim) {
@@ -2336,7 +2388,7 @@
         canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
-        const compressed = canvas.toDataURL('image/jpeg', 0.75);
+        const compressed = canvas.toDataURL('image/jpeg', 0.85);
         callback(compressed);
       };
       img.src = rawUrl;

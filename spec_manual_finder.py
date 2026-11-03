@@ -152,6 +152,37 @@ OEM_SPECS_DATABASE = {
         "manual_title": "Goodman GM9C96 Installation Manual (PDF)",
         "secondary_url": "https://www.goodmanmfg.com"
     },
+    # Rheem / Ruud Classic Plus 96% Gas Furnace (R96V)
+    "r96v": {
+        "model": "Rheem / Ruud R96V Two-Stage Variable Speed 96% Furnace",
+        "brand": "Rheem / Ruud",
+        "category": "Furnace (96% Condensing)",
+        "mca": "8.2A - 10.8A",
+        "mopd": "15A 1-Pole Breaker",
+        "electrical": "120V / 1-Phase / 60Hz (14/2 Romex)",
+        "venting": "2\" or 3\" Sch 40 Solid Core PVC / Polypropylene (Max 65ft equivalent).",
+        "gas_inlet": "1/2\" NPT Nat Gas (Min 4.5\" w.c. / Max 10.5\" w.c.)",
+        "drain": "3/4\" PVC condensate drain trap + clear vinyl drain tubing to drain/pump",
+        "blower_dipswitches": "SW1 and SW2 DIP switches on control board set CFM and staging delay.",
+        "manual_url": "https://www.rheem.com/document/r96v-installation-instructions/",
+        "manual_title": "Rheem R96V Gas Furnace Installation Instructions (PDF)",
+        "secondary_url": "https://www.manualslib.com/products/Rheem-R96v-11221764.html"
+    },
+    # Goodman GSX14 / GSX16 Air Conditioner Condenser
+    "gsx14": {
+        "model": "Goodman GSX14 / GSX16 Air Conditioner Condenser",
+        "brand": "Goodman",
+        "category": "Air Conditioner Condenser",
+        "mca": "14.2A (2.5T) / 18.8A (3T) / 25.1A (4T)",
+        "mopd": "25A-30A (2.5T) / 30A-35A (3T) / 45A-50A (4-5T)",
+        "electrical": "208/230V 1-Phase (10/2 or 8/2 Romex + 60A Disconnect)",
+        "lineset": "3/8\" Liquid x 3/4\" Suction (up to 3.5T) / 3/8\" x 7/8\" (4T - 5T)",
+        "charge": "Pre-charged for 15ft. Target 9°F - 11°F Subcooling with TXV.",
+        "pad_size": "36\" x 36\" (up to 3T) / 38\" x 42\" (4T - 5T)",
+        "manual_url": "https://www.goodmanmfg.com/pdf/technical/IO-GSX14.pdf",
+        "manual_title": "Goodman GSX14 Air Conditioner Installation Manual (PDF)",
+        "secondary_url": "https://www.manualslib.com/brand/goodman/air-conditioner.html"
+    },
     # Mitsubishi Ductless Inverter Heat Pump (PUZ / MSZ)
     "mitsubishi": {
         "model": "Mitsubishi Electric M-Series / P-Series Ductless Heat Pump",
@@ -170,6 +201,25 @@ OEM_SPECS_DATABASE = {
     }
 }
 
+OEM_MODEL_ALIASES = {
+    # Trane / American Standard
+    "s9x": "s9x1", "s9x1": "s9x1", "s8x": "s8x1", "s8x1": "s8x1",
+    "4a7a": "4a7a", "4a7": "4a7a", "silver": "4a7a", "4ttr": "4a7a", "4twx": "4a7a",
+    # Bosch
+    "bova": "bova", "bva": "bova", "ids": "bova",
+    # Carrier / Bryant
+    "59tp": "59tp6", "59tp6": "59tp6", "58sb": "58sb",
+    "24sca": "24sca5", "24sca5": "24sca5", "24vna": "24vna9", "24vna9": "24vna9",
+    # Lennox
+    "el296": "el296v", "el296v": "el296v", "ml196": "ml196e", "ml14": "ml14xc",
+    # Goodman / Daikin
+    "gm9c": "gm9c96", "gm9c96": "gm9c96", "gsx": "gsx14", "gsx14": "gsx14",
+    # Rheem / Ruud
+    "r96": "r96v", "r96v": "r96v", "ra14": "ra14",
+    # Mitsubishi
+    "puz": "mitsubishi", "msz": "mitsubishi", "mitsubishi": "mitsubishi"
+}
+
 
 def lookup_equipment_specs(query_text="", brand="", model="", tonnage=2.5, furnace_btu="60k", furnace_eff="95%"):
     """
@@ -178,33 +228,42 @@ def lookup_equipment_specs(query_text="", brand="", model="", tonnage=2.5, furna
     """
     clean_q = f"{query_text} {brand} {model}".lower().strip()
     
-    # 1. Search in OEM database by model key
+    # 1. Alias & direct search in OEM database
     matched_entry = None
-    for key, data in OEM_SPECS_DATABASE.items():
-        if key in clean_q or (model and key in model.lower()) or (key in clean_q):
-            matched_entry = data
-            break
+    for alias, key in OEM_MODEL_ALIASES.items():
+        if alias in clean_q:
+            matched_entry = OEM_SPECS_DATABASE.get(key)
+            if matched_entry:
+                break
+
+    if not matched_entry:
+        for key, data in OEM_SPECS_DATABASE.items():
+            if key in clean_q or (model and key in model.lower()):
+                matched_entry = data
+                break
             
     # Check by brand if specific model wasn't matched
     if not matched_entry:
         if "bosch" in clean_q:
-            matched_entry = OEM_SPECS_DATABASE["bova"]
-        elif "carrier" in clean_q and ("furnace" in clean_q or "96" in clean_q or "95" in clean_q):
-            matched_entry = OEM_SPECS_DATABASE["59tp6"]
-        elif "carrier" in clean_q and ("infinity" in clean_q or "green" in clean_q):
-            matched_entry = OEM_SPECS_DATABASE["24vna9"]
+            matched_entry = OEM_SPECS_DATABASE.get("bova")
+        elif "carrier" in clean_q and any(x in clean_q for x in ["furnace", "96", "95", "gas"]):
+            matched_entry = OEM_SPECS_DATABASE.get("59tp6")
+        elif "carrier" in clean_q and any(x in clean_q for x in ["infinity", "green", "variable"]):
+            matched_entry = OEM_SPECS_DATABASE.get("24vna9")
         elif "carrier" in clean_q:
-            matched_entry = OEM_SPECS_DATABASE["24sca5"]
+            matched_entry = OEM_SPECS_DATABASE.get("24sca5")
         elif "lennox" in clean_q:
-            matched_entry = OEM_SPECS_DATABASE["el296v"]
+            matched_entry = OEM_SPECS_DATABASE.get("el296v")
         elif "goodman" in clean_q or "daikin" in clean_q:
-            matched_entry = OEM_SPECS_DATABASE["gm9c96"]
+            matched_entry = OEM_SPECS_DATABASE.get("gm9c96")
+        elif "rheem" in clean_q or "ruud" in clean_q:
+            matched_entry = OEM_SPECS_DATABASE.get("r96v")
         elif "mitsubishi" in clean_q or "mini" in clean_q:
-            matched_entry = OEM_SPECS_DATABASE["mitsubishi"]
-        elif ("american standard" in clean_q or "trane" in clean_q) and ("furnace" in clean_q or "s9x1" in clean_q or "95" in clean_q):
-            matched_entry = OEM_SPECS_DATABASE["s9x1"]
-        elif ("american standard" in clean_q or "trane" in clean_q) and ("ac" in clean_q or "air" in clean_q or "condenser" in clean_q or "4a7a" in clean_q):
-            matched_entry = OEM_SPECS_DATABASE["4a7a"]
+            matched_entry = OEM_SPECS_DATABASE.get("mitsubishi")
+        elif ("american standard" in clean_q or "trane" in clean_q) and any(x in clean_q for x in ["furnace", "s9x1", "95", "96", "s9"]):
+            matched_entry = OEM_SPECS_DATABASE.get("s9x1")
+        elif ("american standard" in clean_q or "trane" in clean_q):
+            matched_entry = OEM_SPECS_DATABASE.get("4a7a")
 
     # 2. Universal Physics Calculation (Always available)
     ton = float(tonnage) if tonnage else 2.5
@@ -237,10 +296,18 @@ def lookup_equipment_specs(query_text="", brand="", model="", tonnage=2.5, furna
         calc_vent = '4" Metal B-Vent Pipe (5ft) + Adjustable Elbow + Draft Hood (Natural Draft)'
         calc_drain = 'Not required for 80% Non-Condensing Flue'
 
-    # Build direct search fallback URL that opens Google PDF search directly on iOS
-    search_terms = f"{brand or ''} {model or query_text or 'HVAC'} installation manual filetype:pdf".strip()
-    google_search_url = f"https://www.google.com/search?q={urllib.parse.quote(search_terms)}"
-    manualslib_url = f"https://www.manualslib.com/search.php?q={urllib.parse.quote((brand or '') + ' ' + (model or query_text or ''))}"
+    # Build direct search fallback URL for Google and ManualsLib
+    raw_term = (model or query_text or "").strip()
+    first_tok = raw_term.split()[0] if raw_term else ""
+    if re.search(r'^[A-Z0-9\-_]{3,20}$', first_tok, re.IGNORECASE):
+        search_target = first_tok
+    else:
+        search_target = raw_term or "HVAC"
+
+    brand_str = f"{brand} " if (brand and brand.lower() not in search_target.lower()) else ""
+    full_search_phrase = f"{brand_str}{search_target} installation manual pdf".strip()
+    google_search_url = f"https://www.google.com/search?q={urllib.parse.quote(full_search_phrase)}"
+    manualslib_url = f"https://www.manualslib.com/search.php?q={urllib.parse.quote((brand_str + search_target).strip())}"
 
     if matched_entry:
         return {

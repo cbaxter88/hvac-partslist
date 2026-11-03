@@ -3,6 +3,7 @@ import http.server
 import socketserver
 import json
 import os
+import re
 import base64
 import tempfile
 import datetime
@@ -242,11 +243,14 @@ class TelemetryHandler(http.server.SimpleHTTPRequestHandler):
 
                 # Extract Model Number
                 detected_model = ""
+                detected_brand = ""
                 text_clean = extracted_text.replace('\r', ' ')
+
+                # 1. Look for explicit model / catalog numbers
                 model_patterns = [
-                    r'(?:MODEL|MOD|M\/N|MODEL NO|MODEL NUMBER|PROD NO)[:.\s]+([A-Z0-9\-_]{5,24})',
-                    r'(?:CAT NO|CATALOG NO)[:.\s]+([A-Z0-9\-_]{5,24})',
-                    r'\b(4A7A\w+|4TTR\w+|4TWX\w+|S9X1\w+|S8X1\w+|59TP\w+|58SB\w+|24SCA\w+|24VNA\w+|BOVA[-_0-9A-Z]+|BVA[-_0-9A-Z]+|EL296\w+|ML196\w+|GM9C\w+|GSX\w+|PUZ[-_0-9A-Z]+|MSZ[-_0-9A-Z]+)\b'
+                    r'(?:MODEL|MOD|M\/N|MODEL NO|MODEL NUMBER|PROD NO|ITEM NO)[:.\s]+([A-Z0-9\-_/]{3,24})',
+                    r'(?:CAT NO|CATALOG NO)[:.\s]+([A-Z0-9\-_/]{3,24})',
+                    r'\b(4A7A\w*|4TTR\w*|4TWX\w*|S9X1\w*|S8X1\w*|S9V2\w*|S8V2\w*|59TP\w*|59MN\w*|58SB\w*|24SCA\w*|24VNA\w*|24ACC\w*|BOVA[-_0-9A-Z]*|BVA[-_0-9A-Z]*|EL296\w*|ML196\w*|EL196\w*|ML14\w*|GM9C\w*|GMVC\w*|GSX\w*|GSXC\w*|PUZ[-_0-9A-Z]*|MSZ[-_0-9A-Z]*|RA14\w*|RA16\w*|R96V\w*|R95T\w*|A4AC\w*|A951\w*)\b'
                 ]
                 for pat in model_patterns:
                     m = re.search(pat, text_clean, re.IGNORECASE)
@@ -254,21 +258,34 @@ class TelemetryHandler(http.server.SimpleHTTPRequestHandler):
                         detected_model = m.group(1).strip().upper()
                         break
 
+                # 2. Look for manual title headers (e.g. "Installer's Guide S9X1", "Installation Instructions 59TP6")
                 if not detected_model:
-                    # Token search for typical alphanumeric HVAC codes
+                    m_guide = re.search(r'(?:INSTALLER\x27?S\s*GUIDE|INSTALLATION\s*INSTRUCTIONS|MANUAL|SUBMITTAL|DATA\s*SHEET)[:\s]+([A-Z0-9\-_/]{3,20})', text_clean, re.IGNORECASE)
+                    if m_guide:
+                        detected_model = m_guide.group(1).strip().upper()
+
+                # 3. Token search for typical alphanumeric HVAC codes (allow 3-24 characters)
+                if not detected_model:
                     for line in text_clean.split('\n'):
                         for tok in line.strip().split():
                             clean_tok = re.sub(r'[^A-Z0-9\-]', '', tok.upper())
-                            if 6 <= len(clean_tok) <= 22 and re.search(r'[A-Z]', clean_tok) and re.search(r'\d', clean_tok):
-                                if not any(clean_tok.startswith(x) for x in ['SERIAL', 'SER', 'VOLT', 'HERTZ', 'PHASE', 'AMPS', 'WATTS']):
+                            if 3 <= len(clean_tok) <= 22 and re.search(r'[A-Z]', clean_tok) and re.search(r'\d', clean_tok):
+                                if not any(clean_tok.startswith(x) for x in ['SERIAL', 'SER', 'VOLT', 'HERTZ', 'PHASE', 'AMPS', 'WATTS', 'CODE', 'PART', 'ANSI', 'UL', 'CSA', 'AHRI']):
                                     detected_model = clean_tok
                                     break
                         if detected_model:
                             break
 
+                # 4. Brand detection from OCR text
+                for b in ["American Standard", "Trane", "Carrier", "Lennox", "Bosch", "Goodman", "Mitsubishi", "Rheem", "Ruud", "Daikin", "York", "Bryant", "Payne", "Amana", "Heil", "RunTru"]:
+                    if b.lower() in text_clean.lower():
+                        detected_brand = b
+                        break
+
                 # Query specs for detected model
                 specs_result = spec_manual_finder.lookup_equipment_specs(
                     query_text=detected_model or extracted_text[:120],
+                    brand=detected_brand,
                     model=detected_model
                 )
 
