@@ -503,6 +503,15 @@
           <span class="text-xl">📋</span>
         </div>
 
+        <!-- Auto-Detected Equipment with Linked Manuals -->
+        <div id="jcard-equip-preview" class="space-y-1.5 hidden">
+          <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider px-0.5">
+            <span>Detected Equipment & Models</span>
+            <span class="text-emerald-400 font-bold">⚡ Specs & Manuals Linked</span>
+          </div>
+          <div id="jcard-equip-items" class="space-y-1"></div>
+        </div>
+
         <div class="space-y-1.5 text-xs">
           <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
             <span class="text-slate-300">❄️ Lineset Copper</span>
@@ -1259,6 +1268,14 @@
       modal.classList.remove('opacity-0', 'pointer-events-none');
 
       const rec = activeJobberRecipe || {};
+
+      // Immediate display if specs are pre-linked from Jobber parse
+      const preloadedEquip = (rec.equipment || []).find(e => e.id === equipId);
+      if (preloadedEquip && preloadedEquip.specs && preloadedEquip.specs.found) {
+        if (spinner) spinner.classList.add('hidden');
+        applySpecsToModal(preloadedEquip.specs, modelSearch || equipName);
+      }
+
       const payload = {
         query: modelSearch || equipName,
         model: modelSearch || '',
@@ -1410,6 +1427,30 @@
       if (parsed.has_new_lines) scopeFlags.push('New Lines (No Flush)');
       if (parsed.has_removal) scopeFlags.push('Old Unit Removal Added');
       document.getElementById('jcard-scope').innerText = scopeFlags.join(' • ') || 'Standard Installation';
+
+      // Render Detected Equipment with Model Badges & Manual status
+      const equipBox = document.getElementById('jcard-equip-preview');
+      const equipListEl = document.getElementById('jcard-equip-items');
+      if (equipBox && equipListEl && parsed.equipment && parsed.equipment.length > 0) {
+        equipListEl.innerHTML = parsed.equipment.map(eq => {
+          const hasManual = !!(eq.manual_url || (eq.specs && eq.specs.manual_url));
+          const code = eq.model_code || '';
+          return `
+            <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5 min-w-0 pr-2">
+                <span class="font-bold text-slate-200 truncate">${eq.name}</span>
+                ${code ? `<span class="px-1.5 py-0.2 rounded font-mono font-bold text-[9px] bg-blue-500/20 text-blue-300 border border-blue-500/30 flex-shrink-0">${code}</span>` : ''}
+              </div>
+              <div class="flex-shrink-0">
+                ${hasManual ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1"><span>📖</span><span>PDF Manual Linked</span></span>` : `<span class="text-[9px] text-slate-500">Specs Ready</span>`}
+              </div>
+            </div>
+          `;
+        }).join('');
+        equipBox.classList.remove('hidden');
+      } else if (equipBox) {
+        equipBox.classList.add('hidden');
+      }
 
       const card = document.getElementById('jobber-recipe-card');
       card.classList.remove('hidden');
@@ -1850,21 +1891,55 @@
         if (hiddenParts.includes(item.id) || sessionHiddenItems.includes(item.id)) return;
 
         const isChecked = !!loadedState[item.id];
+        const specs = item.specs || {};
+        const hasManual = !!(item.manual_url || specs.manual_url);
+        const manualUrl = item.manual_url || specs.manual_url || '';
+        const modelCode = item.model_code || '';
+
+        // Quick spec highlight badges
+        let specChipsHtml = '';
+        if (specs.mopd && specs.mopd !== 'N/A') {
+          const shortMopd = specs.mopd.split('+')[0].trim();
+          specChipsHtml += `<span class="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">⚡ ${shortMopd}</span>`;
+        }
+        if (item.id === 'eq-furnace' && specs.venting && specs.venting !== 'None') {
+          const shortVent = specs.venting.includes('PVC') ? '2" PVC Flue' : '4" B-Vent';
+          specChipsHtml += `<span class="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">🔥 ${shortVent}</span>`;
+        }
+        if ((item.id === 'eq-ac' || item.id === 'eq-hp') && specs.lineset) {
+          const parts = specs.lineset.split('x');
+          const shortLine = (parts[0] || '').trim() + ' x ' + (parts[1] || '').trim().split(' ')[0];
+          specChipsHtml += `<span class="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">❄️ ${shortLine}</span>`;
+        }
+        if (specs.charge_subcooling && specs.charge_subcooling.includes('Subcooling')) {
+          specChipsHtml += `<span class="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">🌡️ 10°F Subcool</span>`;
+        }
+
         const row = document.createElement('div');
         row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isChecked ? 'opacity-50 bg-slate-900/30' : ''}`;
         row.innerHTML = `
           <div class="flex items-center gap-2 flex-1 pr-2">
-            <button onclick="openEquipmentSpecsModal('${item.id}', '${item.name.replace(/'/g, "\\'")}', '${(item.model_search || item.name).replace(/'/g, "\\'")}')" class="px-2 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-[10px] font-black text-blue-300 hover:text-white flex items-center gap-1 spring flex-shrink-0">
-              <span>📖</span>
-              <span>Specs & Manual</span>
-            </button>
+            <div class="flex flex-col gap-1 flex-shrink-0">
+              ${hasManual ? `
+                <a href="${manualUrl}" target="_blank" rel="noopener noreferrer" class="px-2 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/60 border border-emerald-500/40 text-[10px] font-black text-emerald-300 hover:text-white flex items-center justify-center gap-1 spring">
+                  <span>📖</span>
+                  <span>Manual (PDF)</span>
+                </a>
+              ` : ''}
+              <button onclick="openEquipmentSpecsModal('${item.id}', '${item.name.replace(/'/g, "\\'")}', '${(modelCode || item.model_search || item.name).replace(/'/g, "\\'")}')" class="px-2 py-1 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-[10px] font-black text-blue-300 hover:text-white flex items-center justify-center gap-1 spring">
+                <span>⚡</span>
+                <span>${modelCode ? modelCode + ' Specs' : 'Specs'}</span>
+              </button>
+            </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${item.name}</span>
+                ${modelCode ? `<span class="text-[9px] px-1.5 py-0.2 rounded font-mono font-black bg-blue-500/25 text-blue-300 border border-blue-500/40">${modelCode}</span>` : ''}
                 <span class="text-[9px] px-1 py-0.2 rounded font-bold bg-slate-800 text-slate-400">${item.qty}</span>
                 <span class="text-[8px] px-1.5 py-0.2 rounded font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">🏷️ ${item.badge}</span>
               </div>
               <div class="text-[10px] text-slate-400 line-clamp-1">${item.desc}</div>
+              ${specChipsHtml ? `<div class="flex items-center gap-1.5 flex-wrap mt-1">${specChipsHtml}</div>` : ''}
             </div>
           </div>
           <label class="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer flex-shrink-0">
@@ -2784,12 +2859,85 @@
         brand: 'American Standard',
         profile: 'full-system',
         tonnage: 2.5,
-        ac_seer: '13-SEER2',
-        furnace_eff: '95%',
+        seer: '13-SEER2',
+        furnace_eff: '95% Condensing',
+        furnace_btu: '60k',
         furnace_model: 'S9X1',
         has_new_lines: true,
         has_removal: true,
         is_condensing_90plus: true,
+        equipment: [
+          {
+            id: 'eq-ac',
+            name: 'American Standard 2.5-Ton Condenser (4A7A • 13-SEER2)',
+            model_code: '4A7A',
+            qty: '1 Unit',
+            badge: '2.5T Sizing',
+            desc: 'Outdoor AC Condenser • Factory charged • 13-SEER2',
+            model_search: '4A7A',
+            manual_url: 'https://www.americanstandardair.com/content/dam/amstd-corp/global/manuals/installers-guide-4a7a-ac.pdf',
+            manual_title: "American Standard 4A7A Installer's Guide",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard',
+              model_name: 'American Standard 4A7A Silver AC Condenser',
+              category: 'Air Conditioner Condenser',
+              mca: '14.1A (2.5T) / 18.2A (3T) / 24.5A (4T)',
+              mopd: '25A-30A (2.5T) / 30A-35A (3T)',
+              electrical: '208/230V 1-Phase (10/2 Romex + 60A Disconnect)',
+              lineset: '3/8" Liquid x 3/4" Suction (50ft)',
+              charge_subcooling: 'Factory pre-charged for 15ft lineset. Target 10°F Subcooling.',
+              manual_url: 'https://www.americanstandardair.com/content/dam/amstd-corp/global/manuals/installers-guide-4a7a-ac.pdf'
+            }
+          },
+          {
+            id: 'eq-furnace',
+            name: 'American Standard 60k 95% Condensing S9X1 Furnace',
+            model_code: 'S9X1',
+            qty: '1 Unit',
+            badge: '95% Condensing',
+            desc: 'Single-stage gas furnace • 60k input',
+            model_search: 'S9X1',
+            manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-CE12D1-1D-EN_09162020.pdf',
+            manual_title: "S9X1 Installer's Guide (Official Trane / American Standard PDF)",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard / Trane',
+              model_name: 'American Standard / Trane S9X1',
+              category: 'Furnace (95% Condensing)',
+              mca: '8.5A - 11.2A',
+              mopd: '15A 1-Pole Breaker',
+              electrical: '120V / 1-Phase / 60Hz (14/2 Romex)',
+              venting: '2" Sch 40 Solid Core PVC (Max 60ft equivalent)',
+              drain: '3/4" PVC condensate trap + clear vinyl drain',
+              manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-CE12D1-1D-EN_09162020.pdf'
+            }
+          },
+          {
+            id: 'eq-coil',
+            name: 'American Standard 2.5-Ton Cased Coil (4PXC)',
+            model_code: '4PXC',
+            qty: '1 Unit',
+            badge: 'Factory TXV',
+            desc: 'Indoor cased evaporator coil',
+            model_search: '4PXC',
+            manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-AD28D1-9A-EN_06152020.pdf',
+            manual_title: "4PXC Cased Coil Installer's Guide (PDF)",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard / Trane',
+              model_name: 'American Standard / Trane 4PXC Cased Coil',
+              category: 'Indoor Cased Evaporator Coil',
+              mca: 'N/A (Passive refrigerant component)',
+              mopd: 'N/A (Powered via furnace circuit)',
+              drain: '3/4" NPT Primary Drain + Safe-T-Switch SS2',
+              manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-AD28D1-9A-EN_06152020.pdf'
+            }
+          }
+        ],
         specs: {
           lineset: '3/8" x 3/4" x 50ft',
           lineset_note: 'Matched to 2.5-Ton',

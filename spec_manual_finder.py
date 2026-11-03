@@ -42,6 +42,38 @@ OEM_SPECS_DATABASE = {
         "manual_title": "S8X1 80% Gas Furnace Installer's Guide",
         "secondary_url": "https://www.manualslib.com/manual/3624985/Trane-S8x1.html"
     },
+    # American Standard & Trane 4PXC Cased Evaporator Coil
+    "4pxc": {
+        "model": "American Standard / Trane 4PXC Cased Coil",
+        "brand": "American Standard / Trane",
+        "category": "Indoor Cased Evaporator Coil",
+        "mca": "N/A (Passive refrigerant component)",
+        "mopd": "N/A (Powered via furnace circuit)",
+        "electrical": "Low-voltage 24V float switch circuit",
+        "lineset": "Braze connections: 3/8\" Liquid x 3/4\" Suction (up to 3T) / 7/8\" Suction (3.5T - 5T)",
+        "drain": "3/4\" NPT Primary Drain + 3/4\" Secondary Drain with SS2 Float Switch",
+        "charge": "Factory nitrogen holding charge. Features factory non-bleed TXV.",
+        "blower_dipswitches": "Match furnace/air handler airflow to 400 CFM per ton.",
+        "manual_url": "https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-AD28D1-9A-EN_06152020.pdf",
+        "manual_title": "4PXC Cased Coil Installer's Guide (Official Trane / American Standard PDF)",
+        "secondary_url": "https://www.manualslib.com/manual/1236895/American-Standard-4pxc.html"
+    },
+    # Carrier Comfort 80 58SB0 Non-Condensing Furnace
+    "58sb0": {
+        "model": "Carrier Comfort 80 58SB0 Gas Furnace",
+        "brand": "Carrier",
+        "category": "Furnace (80% Non-Condensing)",
+        "mca": "7.8A - 9.5A",
+        "mopd": "15A 1-Pole Breaker",
+        "electrical": "120V / 1-Phase / 60Hz (14/2 Romex)",
+        "venting": "4\" Metal B-Vent pipe (Natural Draft Flue).",
+        "gas_inlet": "1/2\" NPT Nat Gas",
+        "drain": "None required (Dry 80% flue gas)",
+        "blower_dipswitches": "Multi-speed ECM motor speed taps on PCB.",
+        "manual_url": "https://www.shareddocs.com/hvac/docs/1009/Public/04/58SB0A-02SI.pdf",
+        "manual_title": "Carrier 58SB0 Installation Instructions (Official PDF)",
+        "secondary_url": "https://www.manualslib.com/manual/1004123/Carrier-58sb0a.html"
+    },
     # American Standard Silver 13 / 14 AC (4A7A)
     "4a7a": {
         "model": "American Standard 4A7A Silver AC Condenser",
@@ -205,10 +237,11 @@ OEM_MODEL_ALIASES = {
     # Trane / American Standard
     "s9x": "s9x1", "s9x1": "s9x1", "s8x": "s8x1", "s8x1": "s8x1",
     "4a7a": "4a7a", "4a7": "4a7a", "silver": "4a7a", "4ttr": "4a7a", "4twx": "4a7a",
+    "4pxc": "4pxc", "4pxa": "4pxc", "4px": "4pxc", "cased coil": "4pxc",
     # Bosch
     "bova": "bova", "bva": "bova", "ids": "bova",
     # Carrier / Bryant
-    "59tp": "59tp6", "59tp6": "59tp6", "58sb": "58sb",
+    "59tp": "59tp6", "59tp6": "59tp6", "58sb": "58sb0", "58sb0": "58sb0",
     "24sca": "24sca5", "24sca5": "24sca5", "24vna": "24vna9", "24vna9": "24vna9",
     # Lennox
     "el296": "el296v", "el296v": "el296v", "ml196": "ml196e", "ml14": "ml14xc",

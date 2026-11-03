@@ -1,6 +1,7 @@
 import re
 import subprocess
 import os
+from spec_manual_finder import lookup_equipment_specs
 
 OCR_TOOL_PATH = "/Users/corybaxter/Desktop/AI/projects/HVAC-partslist/ocr_tool"
 
@@ -236,117 +237,277 @@ def parse_jobber_text(text):
     has_new_lines = "new refrigerant line" in text_lower or "new lineset" in text_lower or "new line" in text_lower
     reusing_lineset = "reuse" in text_lower or "flush" in text_lower
 
-    # 12. Build Modular Equipment List
+    # 12. Model Extraction & Auto-Link Verified Specs + OEM Manuals
+    furnace_model = ""
+    if "s9x1" in text_lower or "s9x" in text_lower:
+        furnace_model = "S9X1"
+    elif "s8x1" in text_lower or "s8x" in text_lower:
+        furnace_model = "S8X1"
+    elif "59tp6" in text_lower or "59tp" in text_lower:
+        furnace_model = "59TP6"
+    elif "58sb0" in text_lower or "58sb" in text_lower:
+        furnace_model = "58SB0"
+    elif "el296v" in text_lower or "el296" in text_lower:
+        furnace_model = "EL296V"
+    elif "ml196e" in text_lower or "ml196" in text_lower:
+        furnace_model = "ML196E"
+    elif "gm9c96" in text_lower or "gm9c" in text_lower:
+        furnace_model = "GM9C96"
+    elif "gm9s96" in text_lower or "gm9s" in text_lower:
+        furnace_model = "GM9S96"
+    elif "r96v" in text_lower or "r96" in text_lower:
+        furnace_model = "R96V"
+    elif "r801" in text_lower:
+        furnace_model = "R801V"
+    if not furnace_model and is_furnace:
+        f_stop = {"STAGE", "INPUT", "SINGLE", "NATURAL", "PROPANE", "SYSTEM", "FULL", "FURNACE", "COIL", "INCLUDES", "INDOOR", "OUTDOOR", "BURNER", "GAS", "HEAT", "EFF"}
+        f_m = re.search(r'(?:furnace|gas heat).*?\b([A-Za-z0-9]{4,10})\b', text_lower)
+        if f_m and f_m.group(1).upper() not in f_stop and re.search(r'\d', f_m.group(1)):
+            furnace_model = f_m.group(1).upper()
+        elif detected_brand in ["American Standard", "Trane"]:
+            furnace_model = "S9X1" if is_condensing_90plus else "S8X1"
+        elif detected_brand == "Carrier":
+            furnace_model = "59TP6" if is_condensing_90plus else "58SB0"
+        elif detected_brand == "Lennox":
+            furnace_model = "EL296V"
+        elif detected_brand in ["Goodman", "Daikin"]:
+            furnace_model = "GM9C96"
+        elif detected_brand in ["Rheem", "Ruud"]:
+            furnace_model = "R96V"
+
+    ac_model = ""
+    if "4a7a" in text_lower or "4a7" in text_lower:
+        ac_model = "4A7A"
+    elif "4ttr" in text_lower:
+        ac_model = "4TTR4"
+    elif "4twx" in text_lower or "4twr" in text_lower:
+        ac_model = "4TWR6"
+    elif "bova" in text_lower:
+        ac_model = "BOVA-36" if tonnage <= 3.0 else "BOVA-60"
+    elif "24sca5" in text_lower or "24sca" in text_lower:
+        ac_model = "24SCA5"
+    elif "24vna9" in text_lower or "24vna" in text_lower:
+        ac_model = "24VNA9"
+    elif "gsx14" in text_lower or "gsx16" in text_lower or "gsx" in text_lower:
+        ac_model = "GSX14"
+    elif "ra14" in text_lower or "ra13" in text_lower:
+        ac_model = "RA14"
+    elif "ml14xc1" in text_lower or "ml14" in text_lower:
+        ac_model = "ML14XC1"
+    
+    if not ac_model and (is_ac or is_heatpump):
+        ac_stop = {"STAGE", "SEER", "SEER2", "TON", "TONS", "SYSTEM", "FURNACE", "COIL", "INCLUDES", "INDOOR", "OUTDOOR", "FULL", "AIR", "CONDITIONER", "CONDITIONING", "NEW", "HEAT", "PUMP", "UNIT"}
+        ac_m = re.search(r'(?:ac|condenser|air condition(?:er|ing)?).*?\b([A-Za-z0-9]{4,10})\b', text_lower)
+        if ac_m and ac_m.group(1).upper() not in ac_stop and re.search(r'\d', ac_m.group(1)):
+            ac_model = ac_m.group(1).upper()
+        elif detected_brand == "American Standard":
+            ac_model = "4A7A"
+        elif detected_brand == "Trane":
+            ac_model = "4TTR4"
+        elif detected_brand == "Carrier":
+            ac_model = "24SCA5"
+        elif detected_brand == "Bosch":
+            ac_model = "BOVA-36" if tonnage <= 3.0 else "BOVA-60"
+        elif detected_brand == "Goodman":
+            ac_model = "GSX14"
+        elif detected_brand in ["Rheem", "Ruud"]:
+            ac_model = "RA14"
+        elif detected_brand == "Lennox":
+            ac_model = "ML14XC1"
+
+    coil_model = ""
+    if "4pxc" in text_lower or "4px" in text_lower:
+        coil_model = "4PXC"
+    elif "cnpv" in text_lower:
+        coil_model = "CNPV"
+    elif "cx35" in text_lower:
+        coil_model = "CX35"
+    elif "chpf" in text_lower:
+        coil_model = "CHPF"
+    elif detected_brand in ["American Standard", "Trane"]:
+        coil_model = "4PXC"
+    elif detected_brand == "Carrier":
+        coil_model = "CNPV"
+    elif detected_brand == "Lennox":
+        coil_model = "CX35"
+    elif detected_brand in ["Goodman", "Daikin"]:
+        coil_model = "CHPF"
+
+    # Pre-lookup verified technical specs and direct PDF manuals
+    furnace_specs = lookup_equipment_specs(furnace_model or "Furnace", brand=detected_brand, model=furnace_model, furnace_btu=furnace_btu, furnace_eff=furnace_eff) if is_furnace else {}
+    ac_specs = lookup_equipment_specs(ac_model or "Condenser", brand=detected_brand, model=ac_model, tonnage=tonnage) if (is_ac or is_heatpump) else {}
+    coil_specs = lookup_equipment_specs(coil_model or "Coil", brand=detected_brand, model=coil_model, tonnage=tonnage) if (is_ac or is_heatpump) else {}
+
+    # 13. Build Modular Equipment List
     equipment = []
     brand_prefix = detected_brand if detected_brand != "HVAC System" else ""
     
     if system_type == "furnace-only":
-        furnace_name = f"{brand_prefix} {furnace_btu} {furnace_eff} S9X1 Furnace" if "s9x1" in text_lower else f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace".strip()
+        f_name = f"{brand_prefix} {furnace_btu} {furnace_eff} {furnace_model} Furnace" if furnace_model else f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace".strip()
         equipment.append({
             "id": "eq-furnace",
-            "name": furnace_name or f"{furnace_btu} {furnace_eff} Gas Furnace",
+            "name": f_name or f"{furnace_btu} {furnace_eff} Gas Furnace",
+            "model_code": furnace_model,
             "qty": "1 Unit",
             "badge": furnace_eff,
             "desc": f"Single-stage gas furnace • {furnace_btu} input • 120V",
-            "model_search": f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace".strip()
+            "model_search": furnace_model or f_name,
+            "specs": furnace_specs,
+            "manual_url": furnace_specs.get("manual_url", ""),
+            "manual_title": furnace_specs.get("manual_title", ""),
+            "secondary_url": furnace_specs.get("secondary_url", ""),
+            "google_search_url": furnace_specs.get("google_search_url", "")
         })
     elif system_type == "ac-only":
+        ac_name = f"{brand_prefix} {tonnage}-Ton Condenser ({ac_model} • {seer})" if ac_model else f"{brand_prefix} {tonnage}-Ton Condenser ({seer})".strip()
+        c_name = f"{brand_prefix} {tonnage}-Ton Cased Coil ({coil_model})" if coil_model else f"{brand_prefix} {tonnage}-Ton Cased Coil".strip()
         equipment.append({
             "id": "eq-ac",
-            "name": f"{brand_prefix} {tonnage}-Ton Condenser ({seer})".strip(),
+            "name": ac_name,
+            "model_code": ac_model,
             "qty": "1 Unit",
             "badge": f"{tonnage}T Sizing",
             "desc": f"Outdoor AC Condenser • Factory charged • {seer}",
-            "model_search": f"{brand_prefix} {tonnage}T {seer} Condenser".strip()
+            "model_search": ac_model or ac_name,
+            "specs": ac_specs,
+            "manual_url": ac_specs.get("manual_url", ""),
+            "manual_title": ac_specs.get("manual_title", ""),
+            "secondary_url": ac_specs.get("secondary_url", ""),
+            "google_search_url": ac_specs.get("google_search_url", "")
         })
         equipment.append({
             "id": "eq-coil",
-            "name": f"{brand_prefix} {tonnage}-Ton Cased Coil".strip(),
+            "name": c_name,
+            "model_code": coil_model,
             "qty": "1 Unit",
             "badge": "Factory TXV",
             "desc": "Indoor cased evaporator coil",
-            "model_search": f"{brand_prefix} {tonnage}T Cased Coil".strip()
+            "model_search": coil_model or c_name,
+            "specs": coil_specs,
+            "manual_url": coil_specs.get("manual_url", ""),
+            "manual_title": coil_specs.get("manual_title", ""),
+            "secondary_url": coil_specs.get("secondary_url", ""),
+            "google_search_url": coil_specs.get("google_search_url", "")
         })
     elif system_type == "heatpump":
+        hp_name = f"{brand_prefix} {tonnage}-Ton Heat Pump Condenser ({ac_model} • {seer})" if ac_model else f"{brand_prefix} {tonnage}-Ton Heat Pump Condenser ({seer})".strip()
         equipment.append({
             "id": "eq-hp",
-            "name": f"{brand_prefix} {tonnage}-Ton Heat Pump Condenser ({seer})".strip(),
+            "name": hp_name,
+            "model_code": ac_model,
             "qty": "1 Unit",
             "badge": f"{tonnage}T Heat Pump",
             "desc": f"Inverter / Heat Pump outdoor unit • {seer}",
-            "model_search": f"{brand_prefix} {tonnage}T Heat Pump".strip()
+            "model_search": ac_model or hp_name,
+            "specs": ac_specs,
+            "manual_url": ac_specs.get("manual_url", ""),
+            "manual_title": ac_specs.get("manual_title", ""),
+            "secondary_url": ac_specs.get("secondary_url", ""),
+            "google_search_url": ac_specs.get("google_search_url", "")
         })
         if is_furnace:
+            c_name = f"{brand_prefix} {tonnage}-Ton Cased Coil ({coil_model})" if coil_model else f"{brand_prefix} {tonnage}-Ton Cased Coil".strip()
+            f_name = f"{brand_prefix} {furnace_btu} {furnace_eff} {furnace_model} Furnace (Dual Fuel)" if furnace_model else f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace (Dual Fuel)".strip()
             equipment.append({
                 "id": "eq-coil",
-                "name": f"{brand_prefix} {tonnage}-Ton Cased Coil".strip(),
+                "name": c_name,
+                "model_code": coil_model,
                 "qty": "1 Unit",
                 "badge": "Heat Pump TXV",
                 "desc": "Indoor cased coil for dual-fuel system",
-                "model_search": f"{brand_prefix} {tonnage}T Coil".strip()
+                "model_search": coil_model or c_name,
+                "specs": coil_specs,
+                "manual_url": coil_specs.get("manual_url", ""),
+                "manual_title": coil_specs.get("manual_title", "")
             })
             equipment.append({
                 "id": "eq-furnace",
-                "name": f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace (Dual Fuel)".strip(),
+                "name": f_name,
+                "model_code": furnace_model,
                 "qty": "1 Unit",
                 "badge": furnace_eff,
                 "desc": "Auxiliary gas furnace backup",
-                "model_search": f"{brand_prefix} {furnace_btu} Furnace".strip()
+                "model_search": furnace_model or f_name,
+                "specs": furnace_specs,
+                "manual_url": furnace_specs.get("manual_url", ""),
+                "manual_title": furnace_specs.get("manual_title", "")
             })
         else:
+            ah_name = f"{brand_prefix} {tonnage}-Ton Multi-Position Air Handler"
             equipment.append({
                 "id": "eq-air-handler",
-                "name": f"{brand_prefix} {tonnage}-Ton Multi-Position Air Handler".strip(),
+                "name": ah_name,
                 "qty": "1 Unit",
                 "badge": "ECM Blower",
                 "desc": "Indoor electric air handler unit",
-                "model_search": f"{brand_prefix} {tonnage}T Air Handler".strip()
+                "model_search": ah_name
             })
     elif system_type == "mini-split":
         equipment.append({
             "id": "eq-minisplit-od",
-            "name": f"{brand_prefix} {tonnage}-Ton Ductless Inverter Heat Pump".strip(),
+            "name": f"{brand_prefix} {tonnage}-Ton Ductless Inverter Heat Pump",
+            "model_code": "MSZ/MUZ",
             "qty": "1 Unit",
             "badge": f"{tonnage}T Inverter",
             "desc": "Variable-speed outdoor ductless condenser",
-            "model_search": f"{brand_prefix} {tonnage}T Ductless".strip()
+            "model_search": "Mitsubishi",
+            "specs": ac_specs,
+            "manual_url": ac_specs.get("manual_url", "")
         })
         equipment.append({
             "id": "eq-minisplit-id",
-            "name": f"{brand_prefix} High-Wall Ductless Indoor Air Handler".strip(),
+            "name": f"{brand_prefix} High-Wall Ductless Indoor Air Handler",
             "qty": "1 Unit",
             "badge": "Wall Mount",
             "desc": "Whisper-quiet indoor evaporator head + remote",
             "model_search": f"{brand_prefix} Ductless Indoor Unit".strip()
         })
     else: # Full System
-        condenser_title = f"{brand_prefix} {tonnage}-Ton Condenser ({seer})".strip()
-        furnace_title = f"{brand_prefix} {furnace_btu} {furnace_eff} S9X1 Furnace" if "s9x1" in text_lower else f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace".strip()
-        coil_title = f"{brand_prefix} {tonnage}-Ton Cased Coil".strip()
+        condenser_title = f"{brand_prefix} {tonnage}-Ton Condenser ({ac_model} • {seer})" if ac_model else f"{brand_prefix} {tonnage}-Ton Condenser ({seer})".strip()
+        furnace_title = f"{brand_prefix} {furnace_btu} {furnace_eff} {furnace_model} Furnace" if furnace_model else f"{brand_prefix} {furnace_btu} {furnace_eff} Furnace".strip()
+        coil_title = f"{brand_prefix} {tonnage}-Ton Cased Coil ({coil_model})" if coil_model else f"{brand_prefix} {tonnage}-Ton Cased Coil".strip()
         
         equipment.append({
             "id": "eq-ac",
             "name": condenser_title,
+            "model_code": ac_model,
             "qty": "1 Unit",
             "badge": f"{tonnage}T Sizing",
             "desc": f"Outdoor AC Condenser • Factory charged • {seer}",
-            "model_search": condenser_title
+            "model_search": ac_model or condenser_title,
+            "specs": ac_specs,
+            "manual_url": ac_specs.get("manual_url", ""),
+            "manual_title": ac_specs.get("manual_title", ""),
+            "secondary_url": ac_specs.get("secondary_url", ""),
+            "google_search_url": ac_specs.get("google_search_url", "")
         })
         equipment.append({
             "id": "eq-furnace",
             "name": furnace_title,
+            "model_code": furnace_model,
             "qty": "1 Unit",
             "badge": furnace_eff,
             "desc": f"Single-stage gas furnace • {furnace_btu} input",
-            "model_search": furnace_title
+            "model_search": furnace_model or furnace_title,
+            "specs": furnace_specs,
+            "manual_url": furnace_specs.get("manual_url", ""),
+            "manual_title": furnace_specs.get("manual_title", ""),
+            "secondary_url": furnace_specs.get("secondary_url", ""),
+            "google_search_url": furnace_specs.get("google_search_url", "")
         })
         equipment.append({
             "id": "eq-coil",
             "name": coil_title,
+            "model_code": coil_model,
             "qty": "1 Unit",
             "badge": "Factory TXV",
             "desc": "Indoor cased evaporator coil",
-            "model_search": coil_title
+            "model_search": coil_model or coil_title,
+            "specs": coil_specs,
+            "manual_url": coil_specs.get("manual_url", ""),
+            "manual_title": coil_specs.get("manual_title", ""),
+            "secondary_url": coil_specs.get("secondary_url", ""),
+            "google_search_url": coil_specs.get("google_search_url", "")
         })
 
     # Subtitle build
