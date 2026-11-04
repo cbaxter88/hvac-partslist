@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>HVAC Smart Loadout & Bin Inventory</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="theme-color" content="#0f172a">
@@ -40,6 +43,7 @@
       </div>
       
       <div class="flex items-center gap-1.5">
+        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.5</span>
         <button onclick="toggleDebugOverlay()" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs flex items-center justify-center spring" title="Debug Console">
           🐞
         </button>
@@ -1292,6 +1296,200 @@
       } catch (e) {}
     }
 
+    const CLIENT_OEM_SPECS = {
+      's9x1': {
+        model_name: 'American Standard / Trane S9X1',
+        brand: 'American Standard / Trane',
+        category: 'Furnace (95% Condensing)',
+        mca: '8.5A - 11.2A',
+        mopd: '15A 1-Pole Breaker',
+        electrical: '120V / 1-Phase / 60Hz (14/2 Romex)',
+        venting: '2" Sch 40 Solid Core PVC / CPVC / Polypropylene (Max 60ft equivalent). 3" for runs over 60ft.',
+        drain: '3/4" PVC condensate drain trap (included) + clear vinyl drain tubing to drain/pump',
+        blower_tips: 'Tap 1-4 for Heating CFM, Tap 5-9 for Cooling CFM. Set SW1 to matching ton (e.g. 1000 CFM for 2.5T).',
+        manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-CE12D1-1D-EN_09162020.pdf',
+        google_search_url: 'https://www.google.com/search?q=' + encodeURIComponent('American Standard S9X1 installation manual pdf'),
+        is_exact_match: true
+      },
+      's8x1': {
+        model_name: 'American Standard / Trane S8X1',
+        brand: 'American Standard / Trane',
+        category: 'Furnace (80% Non-Condensing)',
+        mca: '7.5A - 9.8A',
+        mopd: '15A 1-Pole Breaker',
+        electrical: '120V / 1-Phase / 60Hz (14/2 Romex)',
+        venting: '4" Category I Metal B-Vent pipe to chimney or roof cap (No PVC).',
+        drain: 'None required (Dry flue exhaust)',
+        blower_tips: 'Factory speed taps 1-5 on 9-pin molex. High for Cool, Med-High for Heat.',
+        manual_url: 'https://www.manualslib.com/manual/3624985/Trane-S8x1.html',
+        google_search_url: 'https://www.google.com/search?q=' + encodeURIComponent('American Standard S8X1 installation manual pdf'),
+        is_exact_match: true
+      },
+      '4a7a': {
+        model_name: 'American Standard 4A7A Silver AC Condenser',
+        brand: 'American Standard',
+        category: 'Air Conditioner Condenser',
+        mca: '14.1A (2.5T) / 18.2A (3T) / 24.5A (4T)',
+        mopd: '25A-30A (2.5T) / 30A-35A (3T) / 40A-50A (4-5T)',
+        electrical: '208/230V 1-Phase (10/2 or 8/2 Romex + 60A Disconnect)',
+        lineset: '3/8" Liquid x 3/4" Suction (up to 3.5T) / 3/8" x 7/8" (4T - 5T)',
+        charge_subcooling: 'Target 10°F (±2°F) Subcooling at liquid service valve with TXV. Factory pre-charged for 15ft.',
+        drain: 'N/A (Outdoor Condenser)',
+        venting: 'N/A (Outdoor Condenser)',
+        blower_tips: 'Match airflow with indoor coil to 400 CFM per ton.',
+        manual_url: 'https://www.americanstandardair.com/content/dam/amstd-corp/global/manuals/installers-guide-4a7a-ac.pdf',
+        google_search_url: 'https://www.google.com/search?q=' + encodeURIComponent('American Standard 4A7A installers guide pdf'),
+        is_exact_match: true
+      },
+      '4pxc': {
+        model_name: 'American Standard / Trane 4PXC Cased Coil',
+        brand: 'American Standard / Trane',
+        category: 'Indoor Cased Evaporator Coil',
+        mca: 'N/A (Passive component)',
+        mopd: 'N/A (Powered via furnace circuit)',
+        electrical: 'Low-voltage 24V float switch circuit',
+        lineset: 'Braze connections: 3/8" Liquid x 3/4" Suction (up to 3T) / 7/8" Suction (3.5T - 5T)',
+        drain: '3/4" NPT Primary Drain + 3/4" Secondary Drain with SS2 Float Switch',
+        charge_subcooling: 'Factory nitrogen holding charge. Features factory non-bleed TXV.',
+        venting: 'N/A (Indoor Coil)',
+        blower_tips: 'Match furnace/air handler airflow to 400 CFM per ton.',
+        manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-AD28D1-9A-EN_06152020.pdf',
+        google_search_url: 'https://www.google.com/search?q=' + encodeURIComponent('American Standard 4PXC coil installation manual pdf'),
+        is_exact_match: true
+      },
+      'bova': {
+        model_name: 'Bosch IDS 2.0 BOVA-36 / BOVA-60 Inverter Heat Pump',
+        brand: 'Bosch',
+        category: 'Inverter Variable-Capacity Heat Pump',
+        mca: '24.2A (BOVA-36) / 36.5A (BOVA-60)',
+        mopd: '40A Max (BOVA-36) / 60A Max (BOVA-60)',
+        electrical: '208/230V 1-Phase (8/2 Romex for 36 / 6/2 Romex for 60)',
+        lineset: '3/8" Liquid x 3/4" Suction (BOVA-36) / 3/8" x 7/8" (BOVA-60). Max run 100ft.',
+        charge_subcooling: 'Factory pre-charge: 121 oz R-410A. Subcooling target: 10°F (±2°F).',
+        drain: 'N/A (Outdoor Unit) / 6" Snow Riser legs recommended',
+        venting: 'N/A (Outdoor Unit)',
+        blower_tips: 'Dip switch SW4: 00=Accelerated, 01=Standard, 10=Quiet mode. O/B energized in heating.',
+        manual_url: 'https://hvacdirect.com/media/pdf/BOSCH%20BOVA20%20Installation%20Manual.pdf',
+        google_search_url: 'https://www.google.com/search?q=' + encodeURIComponent('Bosch BOVA-36 installation manual pdf'),
+        is_exact_match: true
+      },
+      '59tp6': {
+        model_name: 'Carrier Performance 96 59TP6 Condensing Furnace',
+        brand: 'Carrier',
+        category: 'Furnace (96% Two-Stage Condensing)',
+        mca: '8.8A - 11.7A',
+        mopd: '15A 1-Pole Breaker',
+        electrical: '120V / 1-Phase / 60Hz (14/2 Romex)',
+        venting: '2" Sch 40 PVC/CPVC (Max 70ft equivalent) or 3" PVC up to 140ft.',
+        drain: 'Factory internal trap with left/right/bottom exit + clear vinyl drain',
+        blower_tips: 'SW1-1 for 2-stage stat, SW1-2 for adaptive staging, SW1-4 for blower off delay (90-180 sec).',
+        manual_url: 'https://www.shareddocs.com/hvac/docs/1009/Public/08/59TP6A-06SI.pdf',
+        google_search_url: 'https://www.google.com/search?q=' + encodeURIComponent('Carrier 59TP6 installation instructions pdf'),
+        is_exact_match: true
+      },
+      '58sb0': {
+        model_name: 'Carrier Comfort 80 58SB0 Gas Furnace',
+        brand: 'Carrier',
+        category: 'Furnace (80% Non-Condensing)',
+        mca: '7.8A - 9.5A',
+        mopd: '15A 1-Pole Breaker',
+        electrical: '120V / 1-Phase / 60Hz (14/2 Romex)',
+        venting: '4" Metal B-Vent pipe (Natural Draft Flue).',
+        drain: 'None required (Dry 80% flue gas)',
+        blower_tips: 'Multi-speed ECM motor speed taps on PCB.',
+        manual_url: 'https://www.shareddocs.com/hvac/docs/1009/Public/04/58SB0A-02SI.pdf',
+        google_search_url: 'https://www.google.com/search?q=' + encodeURIComponent('Carrier 58SB0 installation instructions pdf'),
+        is_exact_match: true
+      }
+    };
+
+    function lookupClientOEMSpecs(query) {
+      if (!query) return null;
+      const q = query.toLowerCase().replace(/[^a-z0-9]/g, '');
+      for (const [k, v] of Object.entries(CLIENT_OEM_SPECS)) {
+        if (q.includes(k) || k.includes(q)) {
+          return v;
+        }
+      }
+      return null;
+    }
+
+    function parseJobberTextClientSide(text) {
+      if (!text || typeof text !== 'string') return null;
+      const t = text.toLowerCase();
+      
+      let profile = 'full-system';
+      if (t.includes('heat pump') || t.includes('inverter') || t.includes('bova')) {
+        profile = 'heatpump';
+      } else if (t.includes('mini-split') || t.includes('ductless')) {
+        profile = 'mini-split';
+      } else if (t.includes('furnace only') || (!t.includes('ac') && !t.includes('air cond') && (t.includes('furnace') || t.includes('s9x1') || t.includes('s8x1')))) {
+        profile = 'furnace-only';
+      } else if (t.includes('ac only') || (!t.includes('furnace') && (t.includes('ac') || t.includes('air cond')))) {
+        profile = 'ac-only';
+      }
+
+      let tonnage = 2.5;
+      const tonMatch = t.match(/(\d(?:\.\d)?)\s*(?:-|\s)?(?:ton|t\b)/);
+      if (tonMatch) tonnage = parseFloat(tonMatch[1]);
+
+      let furnaceBtu = '60k';
+      const btuMatch = t.match(/(\d{2,3})\s*k/);
+      if (btuMatch) furnaceBtu = btuMatch[1] + 'k';
+
+      let furnaceEff = '95%';
+      if (t.includes('80%') || t.includes('s8x1')) furnaceEff = '80%';
+      else if (t.includes('96%')) furnaceEff = '96%';
+
+      let brand = 'American Standard';
+      if (t.includes('carrier')) brand = 'Carrier';
+      else if (t.includes('bosch')) brand = 'Bosch';
+      else if (t.includes('trane')) brand = 'Trane';
+      else if (t.includes('mitsubishi')) brand = 'Mitsubishi';
+
+      const equipment = [];
+      if (t.includes('s9x1')) {
+        equipment.push({ id: 'eq-furnace', name: 'Trane / American Standard 95% S9X1 Furnace', model_code: 'S9X1', specs: CLIENT_OEM_SPECS['s9x1'] });
+      } else if (profile.includes('furnace') || profile === 'full-system') {
+        equipment.push({ id: 'eq-furnace', name: `${brand} ${furnaceEff} S9X1 Gas Furnace (${furnaceBtu})`, model_code: 'S9X1', specs: CLIENT_OEM_SPECS['s9x1'] });
+      }
+
+      if (t.includes('4a7a') || profile === 'full-system' || profile === 'ac-only') {
+        equipment.push({ id: 'eq-condenser', name: `${brand} ${tonnage}T 13-SEER2 Condenser (4A7A)`, model_code: '4A7A', specs: CLIENT_OEM_SPECS['4a7a'] });
+      }
+      if (t.includes('4pxc') || profile === 'full-system') {
+        equipment.push({ id: 'eq-coil', name: `${brand} 4PXC Cased Coil`, model_code: '4PXC', specs: CLIENT_OEM_SPECS['4pxc'] });
+      }
+
+      let title = `${brand} Full System AC & Furnace`;
+      if (profile === 'furnace-only') title = `${brand} ${furnaceEff} Gas Furnace`;
+      else if (profile === 'ac-only') title = `${brand} ${tonnage}-Ton AC System`;
+      else if (profile === 'heatpump') title = `${brand} Inverter Heat Pump`;
+      else if (profile === 'mini-split') title = `${brand} Ductless Heat Pump`;
+
+      const subtitle = profile === 'full-system' 
+        ? `AC 13-SEER2 ${tonnage}-Ton • Furnace ${furnaceBtu} ${furnaceEff} S9X1`
+        : `${tonnage}-Ton Capacity • Standard Sizing`;
+
+      return {
+        brand,
+        title,
+        subtitle,
+        profile,
+        tonnage,
+        furnace_eff: furnaceEff,
+        furnace_btu: furnaceBtu,
+        lineset_str: `${tonnage > 3.5 ? '3/8" x 7/8"' : '3/8" x 3/4"'} x 50ft (${tonnage}T Sizing)`,
+        elec_str: `${tonnage > 3.5 ? '50A' : '30A'} 2P Breaker + Fuses`,
+        flue_str: furnaceEff.includes('95') || furnaceEff.includes('96') ? '2" Sch 40 PVC (95% Condensing)' : '4" Metal B-Vent (80%)',
+        pad_str: `${tonnage > 3.5 ? '38" x 42"' : '36" x 36"'} Pad`,
+        scope_str: 'New Lineset • Tearout Added',
+        equipment,
+        job_number: '',
+        customer_name: ''
+      };
+    }
+
     function applySpecsToModal(s, fallbackName) {
       if (!s) return;
       document.getElementById('spec-modal-brand').innerText = s.brand || 'OEM';
@@ -1373,6 +1571,15 @@
       if (preloadedEquip && preloadedEquip.specs && preloadedEquip.specs.found) {
         if (spinner) spinner.classList.add('hidden');
         applySpecsToModal(preloadedEquip.specs, modelSearch || equipName);
+        return;
+      }
+
+      // Check client-side OEM specs database (instant match on GitHub Pages and offline with 0 latency)
+      const clientMatch = lookupClientOEMSpecs(modelSearch || equipName);
+      if (clientMatch) {
+        if (spinner) spinner.classList.add('hidden');
+        applySpecsToModal(clientMatch, modelSearch || equipName);
+        return;
       }
 
       // If user typed/clicked a specific model (e.g. S9X1, 4A7A), omit rec.brand so model database finds true OEM
@@ -3203,6 +3410,14 @@
 
       const statusEl = document.getElementById('jobber-scan-status');
       if (statusEl) statusEl.classList.remove('hidden');
+
+      // Check client-side parser first (works offline and on GitHub Pages with 0 latency)
+      const clientParsed = parseJobberTextClientSide(text);
+      if (clientParsed) {
+        if (statusEl) statusEl.classList.add('hidden');
+        renderJobberRecipeConfirmation(clientParsed);
+        return;
+      }
 
       fetch('/api/parse-jobber', {
         method: 'POST',
