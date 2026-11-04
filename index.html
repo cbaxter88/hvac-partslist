@@ -11,6 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="theme-color" content="#0f172a">
   <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     @supports (-webkit-touch-callout: none) {
       .ios-scroll { -webkit-overflow-scrolling: touch; }
@@ -43,7 +44,7 @@
       </div>
       
       <div class="flex items-center gap-1.5">
-        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.5</span>
+        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.6</span>
         <button onclick="toggleDebugOverlay()" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs flex items-center justify-center spring" title="Debug Console">
           🐞
         </button>
@@ -1471,6 +1472,21 @@
         ? `AC 13-SEER2 ${tonnage}-Ton • Furnace ${furnaceBtu} ${furnaceEff} S9X1`
         : `${tonnage}-Ton Capacity • Standard Sizing`;
 
+      // Detect job number if present in text
+      let job_number = '';
+      const jnMatch = text.match(/(?:job|work\s*order|quote|wo|job\s*#)[:\s#]+([0-9]{3,8})/i) || text.match(/#\s*([0-9]{4,8})/);
+      if (jnMatch) job_number = jnMatch[1].trim();
+
+      // Detect customer name if present in text
+      let customer_name = '';
+      const cnMatch = text.match(/(?:client|customer|name|bill\s*to|property)[:\s]+([A-Za-z0-9\s,\.\x27\-]{2,30})/i) || text.match(/\bfor\s+([A-Z][a-z]{2,20})\b/);
+      if (cnMatch) {
+        const candidate = cnMatch[1].trim().split('\n')[0];
+        if (!candidate.toLowerCase().includes('system') && !candidate.toLowerCase().includes('furnace') && !candidate.toLowerCase().includes('american')) {
+          customer_name = candidate;
+        }
+      }
+
       return {
         brand,
         title,
@@ -1485,8 +1501,8 @@
         pad_str: `${tonnage > 3.5 ? '38" x 42"' : '36" x 36"'} Pad`,
         scope_str: 'New Lineset • Tearout Added',
         equipment,
-        job_number: '',
-        customer_name: ''
+        job_number: job_number || localStorage.getItem('hvac_job_number') || '',
+        customer_name: customer_name || localStorage.getItem('hvac_customer_name') || ''
       };
     }
 
@@ -1726,15 +1742,15 @@
       if (custInput) custInput.value = parsed.customer_name || '';
 
       const s = parsed.specs || {};
-      document.getElementById('jcard-lineset').innerText = s.lineset ? `${s.lineset} (${s.lineset_note || 'Sized'})` : '3/8" x 3/4" x 50ft';
-      document.getElementById('jcard-elec').innerText = s.electrical || '30A 2P Breaker + 30A Fuses';
-      document.getElementById('jcard-vent').innerText = s.venting || '2" Sch 40 PVC (95% Condensing)';
-      document.getElementById('jcard-pad').innerText = s.pad || '36" x 36" Pad';
+      document.getElementById('jcard-lineset').innerText = s.lineset ? `${s.lineset} (${s.lineset_note || 'Sized'})` : (parsed.lineset_str || '3/8" x 3/4" x 50ft (2.5T Sizing)');
+      document.getElementById('jcard-elec').innerText = s.electrical || parsed.elec_str || '30A 2P Breaker + 30A Fuses';
+      document.getElementById('jcard-vent').innerText = s.venting || parsed.flue_str || '2" Sch 40 PVC (95% Condensing)';
+      document.getElementById('jcard-pad').innerText = s.pad || parsed.pad_str || '36" x 36" Pad';
       
       const scopeFlags = [];
       if (parsed.has_new_lines) scopeFlags.push('New Lines (No Flush)');
       if (parsed.has_removal) scopeFlags.push('Old Unit Removal Added');
-      document.getElementById('jcard-scope').innerText = scopeFlags.join(' • ') || 'Standard Installation';
+      document.getElementById('jcard-scope').innerText = scopeFlags.join(' • ') || parsed.scope_str || 'Standard Installation';
 
       // Render Detected Equipment with Model Badges & Manual status
       const equipBox = document.getElementById('jcard-equip-preview');
@@ -3363,37 +3379,81 @@
       renderJobberRecipeConfirmation(sampleParsed);
     }
 
+    function fallbackClientOcr(imageUrl) {
+      const statusEl = document.getElementById('jobber-scan-status');
+      if (typeof Tesseract !== 'undefined') {
+        if (statusEl) {
+          statusEl.innerHTML = `<span>🔍</span><span>Scanning screenshot on device with OCR...</span>`;
+          statusEl.classList.remove('hidden');
+        }
+        Tesseract.recognize(imageUrl, 'eng')
+          .then(result => {
+            if (statusEl) statusEl.classList.add('hidden');
+            const extractedText = (result && result.data && result.data.text) ? result.data.text : '';
+            console.log('Tesseract OCR Result:', extractedText);
+            
+            // Populate manual backup textarea
+            const rawTextEl = document.getElementById('jobber-raw-text');
+            if (rawTextEl) rawTextEl.value = extractedText;
+
+            const parsed = parseJobberTextClientSide(extractedText);
+            if (parsed) {
+              renderJobberRecipeConfirmation(parsed);
+            } else {
+              alert('Screenshot text read, but no standard HVAC equipment detected. You can review the raw text below and tap Parse Raw Text.');
+            }
+          })
+          .catch(err => {
+            console.error('Client OCR error:', err);
+            if (statusEl) statusEl.classList.add('hidden');
+            alert('Unable to read screenshot automatically. Please paste or type line items below.');
+          });
+      } else {
+        if (statusEl) statusEl.classList.add('hidden');
+        alert('OCR engine is still loading. Please wait a few seconds and try again, or paste text manually.');
+      }
+    }
+
     function handleJobberImageUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
 
       const statusEl = document.getElementById('jobber-scan-status');
       if (statusEl) {
-        statusEl.innerHTML = `<span>📷</span><span>Compressing & Analyzing Line Items with Vision OCR...</span>`;
+        statusEl.innerHTML = `<span>📷</span><span>Processing Screenshot with Vision OCR...</span>`;
         statusEl.classList.remove('hidden');
       }
 
       const reader = new FileReader();
       reader.onload = function(e) {
         compressImageToDataUrl(e.target.result, function(compressedUrl) {
+          // If on static host like GitHub Pages, run on-device browser OCR directly
+          const isStaticHost = window.location.hostname.includes('github.io') || window.location.protocol === 'file:';
+          if (isStaticHost) {
+            fallbackClientOcr(compressedUrl);
+            return;
+          }
+
           fetch('/api/parse-jobber', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image: compressedUrl })
           })
-          .then(res => res.json())
+          .then(res => {
+            if (!res.ok) throw new Error('API returned status ' + res.status);
+            return res.json();
+          })
           .then(data => {
             if (statusEl) statusEl.classList.add('hidden');
             if (data.success && data.parsed) {
               renderJobberRecipeConfirmation(data.parsed);
             } else {
-              loadSampleJobberScreenshot();
+              fallbackClientOcr(compressedUrl);
             }
           })
           .catch(err => {
-            console.error('Jobber upload error:', err);
-            if (statusEl) statusEl.classList.add('hidden');
-            loadSampleJobberScreenshot();
+            console.warn('Backend OCR unavailable, switching to browser OCR:', err);
+            fallbackClientOcr(compressedUrl);
           });
         });
       };
