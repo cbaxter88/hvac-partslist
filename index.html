@@ -30,21 +30,21 @@
   <!-- ========================================================= -->
   <header class="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 px-3.5 pb-2.5 shadow-md" style="padding-top: calc(env(safe-area-inset-top, 0px) + 12px);">
     <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        <div onclick="openEditJobModal()" class="cursor-pointer group" title="Tap to edit active job details">
+      <div class="flex items-center gap-2 flex-1 min-w-0 mr-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
+        <div onclick="openProfileModal()" class="cursor-pointer group flex-1 min-w-0" title="Tap to change system profile">
           <div class="flex items-center gap-1.5">
-            <h1 id="header-active-job" class="text-sm font-black tracking-tight text-white group-hover:text-emerald-400 transition flex items-center gap-1.5">
-              <span>Job #8429 (Pitcher)</span>
-              <span class="text-[10px] text-slate-500 group-hover:text-slate-300">✏️</span>
+            <h1 id="header-active-system-title" class="text-sm font-black tracking-tight text-white group-hover:text-emerald-400 transition truncate">
+              American Standard Full System
             </h1>
+            <span class="text-[10px] text-slate-500 group-hover:text-slate-300 flex-shrink-0">⚙️</span>
           </div>
-          <p id="header-active-equip" class="text-[11px] text-slate-300 line-clamp-1">American Standard 2.5T AC + 95% S9X1 Furnace</p>
+          <p id="header-active-equip" class="text-[11px] text-slate-300 truncate">AC 13-SEER2 2.5-Ton • Furnace 60k 95% S9X1</p>
         </div>
       </div>
       
-      <div class="flex items-center gap-1.5">
-        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.6</span>
+      <div class="flex items-center gap-1.5 flex-shrink-0">
+        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.7</span>
         <button onclick="toggleDebugOverlay()" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs flex items-center justify-center spring" title="Debug Console">
           🐞
         </button>
@@ -92,7 +92,7 @@
         <div class="px-3.5 py-2.5 bg-purple-900/30 flex items-center justify-between border-b border-purple-500/20">
           <div class="flex items-center gap-1.5">
             <span class="text-sm">📌</span>
-            <span id="header-pickups-customer-title" class="text-xs font-bold text-purple-200">Job-Specific Pickups (Pitcher)</span>
+            <span id="header-pickups-customer-title" class="text-xs font-bold text-purple-200">Job-Specific Pickups</span>
             <span id="count-job-pickups" class="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 font-bold">3 items</span>
           </div>
           <span class="text-[10px] text-purple-300 font-mono font-semibold">$179.79 Billed</span>
@@ -537,18 +537,6 @@
           <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
             <span class="text-slate-300">🚚 Scope Triggers</span>
             <span class="font-semibold text-slate-200 text-[10px]" id="jcard-scope">New Lines (No Flush) • Tearout Added</span>
-          </div>
-        </div>
-
-        <!-- Job Details (Auto-filled from Jobber or directly editable) -->
-        <div class="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-950/90 border border-blue-500/30">
-          <div>
-            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Job #</label>
-            <input type="text" id="jcard-job-number" placeholder="e.g. 8429" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-emerald-400 outline-none focus:border-emerald-500 font-mono">
-          </div>
-          <div>
-            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Customer / Name</label>
-            <input type="text" id="jcard-customer-name" placeholder="e.g. Pitcher" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white outline-none focus:border-blue-500">
           </div>
         </div>
 
@@ -1051,27 +1039,32 @@
     const PROFILE_CONFIG = {
       'full-system': {
         badge: 'Full Sys',
-        equip: 'American Standard 2.5T AC + 95% S9X1 Furnace'
+        title: 'American Standard Full System',
+        subtitle: 'AC 13-SEER2 2.5-Ton • Furnace 60k 95% S9X1'
       },
       'furnace-only': {
         badge: 'Furnace',
-        equip: 'American Standard 95% S9X1 Condensing Furnace'
+        title: 'American Standard Gas Furnace',
+        subtitle: '95% Condensing S9X1 (Single Stage)'
       },
       'ac-only': {
         badge: 'AC Only',
-        equip: 'American Standard 2.5-Ton 13-SEER2 AC + Cased Coil'
+        title: 'American Standard AC System',
+        subtitle: '2.5-Ton 13-SEER2 4A7A + Cased Coil'
       },
       'heatpump': {
         badge: 'Heat Pump',
-        equip: 'Bosch Premium Inverter 3.0T Heat Pump (BOVA-36)'
+        title: 'Bosch Inverter Heat Pump System',
+        subtitle: 'Premium IDS 2.0 (BOVA-36)'
       },
       'mini-split': {
         badge: 'Mini-Split',
-        equip: 'Mitsubishi Multi-Zone Ductless Heat Pump'
+        title: 'Mitsubishi Ductless Heat Pump',
+        subtitle: 'Multi-Zone Inverter Heat Pump'
       }
     };
 
-    function updateHeaderDisplay(explicitJobNum, explicitCustName, explicitEquipText, explicitProfile) {
+    function updateHeaderDisplay(explicitTitle, explicitSubtitle, explicitProfile) {
       if (explicitProfile) {
         currentProfile = explicitProfile;
       }
@@ -1079,63 +1072,45 @@
         currentProfile = localStorage.getItem('hvac_current_profile') || 'full-system';
       }
 
-      // 1. Resolve Job # and Customer Name
-      let jobNum = explicitJobNum !== undefined ? explicitJobNum : (localStorage.getItem('hvac_job_number') || '');
-      let custName = explicitCustName !== undefined ? explicitCustName : (localStorage.getItem('hvac_customer_name') || '');
+      const defaultInfo = PROFILE_CONFIG[currentProfile] || PROFILE_CONFIG['full-system'];
 
-      jobNum = (jobNum || '').toString().trim().replace(/^#/, '');
-      custName = (custName || '').toString().trim();
-
-      // Format header active job string
-      let displayJobTitle = '';
-      if (jobNum && custName) {
-        displayJobTitle = `Job #${jobNum} (${custName})`;
-      } else if (jobNum) {
-        displayJobTitle = `Job #${jobNum}`;
-      } else if (custName) {
-        displayJobTitle = `Job: ${custName}`;
+      let sysTitle = '';
+      if (explicitTitle !== undefined && explicitTitle !== null && explicitTitle.trim() !== '') {
+        sysTitle = explicitTitle.trim();
+      } else if (activeJobberRecipe && activeJobberRecipe.title) {
+        sysTitle = activeJobberRecipe.title;
       } else {
-        displayJobTitle = 'Active Work Order';
+        sysTitle = localStorage.getItem('hvac_system_title') || defaultInfo.title;
       }
 
-      // 2. Resolve Equipment text
-      let equipText = '';
-      if (explicitEquipText !== undefined && explicitEquipText !== null && explicitEquipText.trim() !== '') {
-        equipText = explicitEquipText.trim();
-      } else if (activeJobberRecipe && (activeJobberRecipe.title || activeJobberRecipe.subtitle)) {
-        const brand = activeJobberRecipe.brand && activeJobberRecipe.brand !== 'HVAC System' ? activeJobberRecipe.brand : '';
-        const t = activeJobberRecipe.title || `${brand} System`.trim();
-        const s = activeJobberRecipe.subtitle || '';
-        equipText = s ? `${t} • ${s}` : t;
+      let sysSubtitle = '';
+      if (explicitSubtitle !== undefined && explicitSubtitle !== null && explicitSubtitle.trim() !== '') {
+        sysSubtitle = explicitSubtitle.trim();
+      } else if (activeJobberRecipe && activeJobberRecipe.subtitle) {
+        sysSubtitle = activeJobberRecipe.subtitle;
       } else {
-        const storedEquip = localStorage.getItem('hvac_active_equip_summary');
-        const defaultForProf = PROFILE_CONFIG[currentProfile] ? PROFILE_CONFIG[currentProfile].equip : 'Custom HVAC System';
-        equipText = storedEquip || defaultForProf;
+        sysSubtitle = localStorage.getItem('hvac_system_subtitle') || defaultInfo.subtitle;
       }
 
-      // 3. Resolve Profile Badge
-      const profileInfo = PROFILE_CONFIG[currentProfile] || { badge: 'Custom', equip: equipText };
-      const badgeText = profileInfo.badge;
-
-      // 4. Update DOM Elements
-      const headerJobEl = document.getElementById('header-active-job');
-      if (headerJobEl) {
-        headerJobEl.innerHTML = `<span>${displayJobTitle}</span><span class="text-[10px] text-slate-500 group-hover:text-slate-300">✏️</span>`;
+      // Update DOM Elements
+      const headerTitleEl = document.getElementById('header-active-system-title');
+      if (headerTitleEl) {
+        headerTitleEl.innerText = sysTitle;
       }
 
       const headerEquipEl = document.getElementById('header-active-equip');
       if (headerEquipEl) {
-        headerEquipEl.innerText = equipText;
+        headerEquipEl.innerText = sysSubtitle;
       }
 
       const headerBadgeEl = document.getElementById('header-profile-badge');
       if (headerBadgeEl) {
-        headerBadgeEl.innerText = badgeText;
+        headerBadgeEl.innerText = defaultInfo.badge;
       }
 
       const headerPickupsTitleEl = document.getElementById('header-pickups-customer-title');
       if (headerPickupsTitleEl) {
-        headerPickupsTitleEl.innerText = `Job-Specific Pickups (${custName || 'Job'})`;
+        headerPickupsTitleEl.innerText = 'Job-Specific Pickups';
       }
 
       // Also highlight active button in modal-profile if present
@@ -1150,11 +1125,9 @@
         }
       });
 
-      // 5. Persist to localStorage
-      localStorage.setItem('hvac_job_number', jobNum);
-      localStorage.setItem('hvac_customer_name', custName);
-      localStorage.setItem('hvac_active_job_title', displayJobTitle);
-      localStorage.setItem('hvac_active_equip_summary', equipText);
+      // Persist to localStorage
+      localStorage.setItem('hvac_system_title', sysTitle);
+      localStorage.setItem('hvac_system_subtitle', sysSubtitle);
       localStorage.setItem('hvac_current_profile', currentProfile);
     }
 
@@ -1736,11 +1709,6 @@
       document.getElementById('jcard-title').innerText = parsed.title || 'HVAC System';
       document.getElementById('jcard-sub').innerText = parsed.subtitle || 'System Sizing';
 
-      const jobInput = document.getElementById('jcard-job-number');
-      const custInput = document.getElementById('jcard-customer-name');
-      if (jobInput) jobInput.value = parsed.job_number || '';
-      if (custInput) custInput.value = parsed.customer_name || '';
-
       const s = parsed.specs || {};
       document.getElementById('jcard-lineset').innerText = s.lineset ? `${s.lineset} (${s.lineset_note || 'Sized'})` : (parsed.lineset_str || '3/8" x 3/4" x 50ft (2.5T Sizing)');
       document.getElementById('jcard-elec').innerText = s.electrical || parsed.elec_str || '30A 2P Breaker + 30A Fuses';
@@ -1790,30 +1758,10 @@
       activeJobberRecipe = rec;
       currentProfile = rec.profile || 'full-system';
 
-      // Read Job # and Customer from inputs
-      const jobInput = document.getElementById('jcard-job-number');
-      const custInput = document.getElementById('jcard-customer-name');
-      let jobNum = jobInput ? jobInput.value.trim().replace(/^#/, '') : (rec.job_number || '');
-      let custName = custInput ? custInput.value.trim() : (rec.customer_name || '');
-
-      // Preserve previously saved job number and customer name if OCR text didn't catch them
-      if (!jobNum) {
-        jobNum = localStorage.getItem('hvac_job_number') || '';
-      }
-      if (!custName) {
-        custName = localStorage.getItem('hvac_customer_name') || '';
-      }
-
-      rec.job_number = jobNum;
-      rec.customer_name = custName;
-
-      // Update Header Display dynamically
-      const brand = rec.brand && rec.brand !== 'HVAC System' ? rec.brand : '';
-      const equipTitle = rec.title || `${brand} System`.trim();
+      const equipTitle = rec.title || 'HVAC System';
       const equipSub = rec.subtitle || '';
-      const fullEquipText = equipSub ? `${equipTitle} • ${equipSub}` : equipTitle;
 
-      updateHeaderDisplay(jobNum, custName, fullEquipText, currentProfile);
+      updateHeaderDisplay(equipTitle, equipSub, currentProfile);
 
       // Reset today's checklist items for the new morning pick list
       loadedState = {};
@@ -1829,19 +1777,17 @@
       closeJobberModal();
       switchAppTab('loadout');
 
-      const displayJobTitle = localStorage.getItem('hvac_active_job_title') || 'Active Work Order';
       const badgeName = PROFILE_CONFIG[currentProfile] ? PROFILE_CONFIG[currentProfile].badge : currentProfile;
 
       sendTelemetry('ACTION', 'APPLIED_JOBBER_RECIPE', {
         title: equipTitle,
-        job: displayJobTitle,
         profile: currentProfile,
         tonnage: rec.tonnage,
         furnace_eff: rec.furnace_eff
       });
 
-      alert(`✅ Applied ${displayJobTitle}!
-• Equipment: ${fullEquipText}
+      alert(`✅ Applied ${equipTitle}!
+• Specs: ${equipSub}
 • System Type: ${badgeName}
 • Fresh pick list loaded for today.`);
     }
@@ -2031,10 +1977,9 @@
     // --- 6. RENDER TODAY'S LOADOUT (WITH SIZING BADGES & AUTO FILTERING) ---
     function renderLoadoutView() {
       // 1. Render Job Pickups (from Johnstone receipts or site conditions)
-      const pickupsCust = localStorage.getItem('hvac_customer_name') || '';
       const pickupsTitleEl = document.getElementById('header-pickups-customer-title');
       if (pickupsTitleEl) {
-        pickupsTitleEl.innerText = `Job-Specific Pickups (${pickupsCust || 'Job'})`;
+        pickupsTitleEl.innerText = 'Job-Specific Pickups';
       }
 
       const pickupsContainer = document.getElementById('group-job-pickups');
@@ -3194,8 +3139,8 @@
         localStorage.removeItem('hvac_active_recipe');
       }
 
-      const defaultEquip = PROFILE_CONFIG[p] ? PROFILE_CONFIG[p].equip : 'Custom HVAC System';
-      updateHeaderDisplay(undefined, undefined, defaultEquip, p);
+      const defaultInfo = PROFILE_CONFIG[p] || PROFILE_CONFIG['full-system'];
+      updateHeaderDisplay(defaultInfo.title, defaultInfo.subtitle, p);
 
       initHiddenParts();
       initLearnedRecipes();
@@ -3231,43 +3176,13 @@
     }
 
     function openEditJobModal() {
-      const savedNum = localStorage.getItem('hvac_job_number') || '';
-      const savedCust = localStorage.getItem('hvac_customer_name') || '';
-
-      const inputJob = document.getElementById('quick-edit-job-num');
-      const inputCust = document.getElementById('quick-edit-customer');
-      const selectType = document.getElementById('quick-edit-system-type');
-
-      if (inputJob) inputJob.value = savedNum;
-      if (inputCust) inputCust.value = savedCust;
-      if (selectType) selectType.value = currentProfile || 'full-system';
-
-      document.getElementById('modal-edit-job').classList.remove('opacity-0', 'pointer-events-none');
+      openProfileModal();
     }
-
     function closeEditJobModal() {
-      document.getElementById('modal-edit-job').classList.add('opacity-0', 'pointer-events-none');
+      closeProfileModal();
     }
-
     function saveQuickEditJob() {
-      const jobNum = (document.getElementById('quick-edit-job-num')?.value || '').trim().replace(/^#/, '');
-      const custName = (document.getElementById('quick-edit-customer')?.value || '').trim();
-      const selectedType = document.getElementById('quick-edit-system-type')?.value || currentProfile || 'full-system';
-
-      let newEquipText = null;
-      if (selectedType !== currentProfile) {
-        currentProfile = selectedType;
-        activeJobberRecipe = null;
-        localStorage.removeItem('hvac_active_recipe');
-        newEquipText = PROFILE_CONFIG[selectedType] ? PROFILE_CONFIG[selectedType].equip : 'Custom HVAC System';
-      }
-
-      updateHeaderDisplay(jobNum, custName, newEquipText, currentProfile);
-      initHiddenParts();
-      initLearnedRecipes();
-      renderLoadoutView();
-      updateLoadoutProgress();
-      closeEditJobModal();
+      closeProfileModal();
     }
 
     function openJobberModal() {
@@ -3686,52 +3601,7 @@
   </div>
 
 
-  <!-- ========================================================= -->
-  <!-- MODAL: QUICK EDIT ACTIVE JOB DETAILS                      -->
-  <!-- ========================================================= -->
-  <div id="modal-edit-job" class="sheet fixed inset-0 bg-black/80 z-50 flex flex-col justify-end opacity-0 pointer-events-none transition-all duration-200">
-    <div onclick="closeEditJobModal()" class="flex-1"></div>
-    <div class="bg-slate-900 border-t border-slate-700 rounded-t-[28px] p-5 shadow-2xl pb-safe">
-      <div class="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-3"></div>
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Active Work Order</span>
-          <h3 class="text-sm font-bold text-white">Edit Job Information</h3>
-        </div>
-        <button onclick="closeEditJobModal()" class="w-7 h-7 rounded-full bg-slate-800 text-xs text-slate-400 hover:text-white">✕</button>
-      </div>
 
-      <div class="space-y-3 mb-4 text-xs">
-        <div>
-          <label class="block text-slate-400 text-[10px] font-bold uppercase mb-1">Job #:</label>
-          <input type="text" id="quick-edit-job-num" placeholder="e.g. 8429" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-emerald-500 font-mono font-bold">
-        </div>
-        <div>
-          <label class="block text-slate-400 text-[10px] font-bold uppercase mb-1">Customer / Job Name:</label>
-          <input type="text" id="quick-edit-customer" placeholder="e.g. Pitcher" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-emerald-500 font-bold">
-        </div>
-        <div>
-          <label class="block text-slate-400 text-[10px] font-bold uppercase mb-1">System Type:</label>
-          <select id="quick-edit-system-type" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white outline-none focus:border-emerald-500 font-bold">
-            <option value="full-system">Full System AC & Furnace (American Standard S9X1 + 4A7A)</option>
-            <option value="furnace-only">Furnace Only (95% Condensing S9X1)</option>
-            <option value="ac-only">AC Only (2.5-Ton 4A7A + Cased Coil)</option>
-            <option value="heatpump">Heat Pump (Bosch Inverter BOVA-36)</option>
-            <option value="mini-split">Mini-Split (Mitsubishi Ductless Inverter)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="flex gap-2">
-        <button onclick="closeEditJobModal()" class="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs spring">
-          Cancel
-        </button>
-        <button onclick="saveQuickEditJob()" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs spring shadow-lg">
-          Save Job
-        </button>
-      </div>
-    </div>
-  </div>
 
 
   <!-- ========================================================= -->
