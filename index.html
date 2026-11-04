@@ -44,7 +44,7 @@
       </div>
       
       <div class="flex items-center gap-1.5 flex-shrink-0">
-        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.7</span>
+        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.8</span>
         <button onclick="toggleDebugOverlay()" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs flex items-center justify-center spring" title="Debug Console">
           🐞
         </button>
@@ -87,15 +87,18 @@
     <!-- Main Scrollable Loadout Feed -->
     <main class="flex-1 overflow-y-auto ios-scroll p-3.5 space-y-3 pb-24">
       
-      <!-- 📌 JOB-SPECIFIC PICKUPS (Added from Johnstone Receipts or Site Tags) -->
+      <!-- 📌 JOB-SPECIFIC PICKUPS (Added from Johnstone Receipts or Jobber Line Items) -->
       <div id="sec-job-specific-pickups" class="border border-purple-500/40 rounded-2xl overflow-hidden bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900">
         <div class="px-3.5 py-2.5 bg-purple-900/30 flex items-center justify-between border-b border-purple-500/20">
           <div class="flex items-center gap-1.5">
             <span class="text-sm">📌</span>
             <span id="header-pickups-customer-title" class="text-xs font-bold text-purple-200">Job-Specific Pickups</span>
-            <span id="count-job-pickups" class="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 font-bold">3 items</span>
+            <span id="count-job-pickups" class="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 font-bold">0 items</span>
           </div>
-          <span class="text-[10px] text-purple-300 font-mono font-semibold">$179.79 Billed</span>
+          <div class="flex items-center gap-2">
+            <span id="header-pickups-price-badge" class="text-[10px] text-purple-300 font-mono font-semibold">None Required</span>
+            <button onclick="promptAddCustomPickup()" class="w-5 h-5 rounded-md bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 font-bold text-xs flex items-center justify-center spring" title="Add Custom Pickup">+</button>
+          </div>
         </div>
         <div id="group-job-pickups" class="divide-y divide-purple-500/10"></div>
       </div>
@@ -515,6 +518,15 @@
             <span class="text-emerald-400 font-bold">⚡ Specs & Manuals Linked</span>
           </div>
           <div id="jcard-equip-items" class="space-y-1"></div>
+        </div>
+
+        <!-- Auto-Detected Job Pickups (Accessories & Custom Transitions) -->
+        <div id="jcard-pickups-preview" class="space-y-1.5 hidden">
+          <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider px-0.5">
+            <span>📌 Job-Specific Pickups (Supply House)</span>
+            <span class="text-purple-400 font-bold" id="jcard-pickups-count">0 items</span>
+          </div>
+          <div id="jcard-pickups-items" class="space-y-1"></div>
         </div>
 
         <div class="space-y-1.5 text-xs">
@@ -1028,11 +1040,7 @@
     let isRunningNewCircuit = true;
     let loadedState = {};
     let customItemPhotos = {}; // id -> base64/url
-    let activeJobPickups = [
-      { id: 'job-p1', name: '16"x25" to 24"x10" Return Air Drop Elbow', sku: 'TTS1625', price: '$56.44', checked: false, desc: 'Pre-fab galvanized transition for media filter' },
-      { id: 'job-p2', name: '16"x25" Honeywell Media Air Filter (F100F)', sku: 'F100F1625', price: '$96.70', checked: false, desc: '16x25x4 high-efficiency media cleaner cabinet' },
-      { id: 'job-p3', name: '26-Gauge Galvanized Sheet Metal (36" x 96")', sku: 'P0101A', price: '$26.65', checked: false, desc: 'Flat sheet for custom basement supply transitions' }
-    ];
+    let activeJobPickups = [];
     let receiptHistory = [];
     let currentActiveInspectId = null;
 
@@ -1162,7 +1170,21 @@
         if (storedPhotos) customItemPhotos = JSON.parse(storedPhotos);
 
         const storedPickups = localStorage.getItem('hvac_job_pickups');
-        if (storedPickups) activeJobPickups = JSON.parse(storedPickups);
+        if (storedPickups) {
+          try {
+            const parsed = JSON.parse(storedPickups);
+            // Purge the old hardcoded demo items if they were saved in the user's browser
+            const isLegacyDemo = Array.isArray(parsed) && parsed.some(x => x.id === 'job-p1' || x.id === 'job-p2' || (x.name && x.name.includes('Return Air Drop Elbow')));
+            if (isLegacyDemo) {
+              activeJobPickups = [];
+              localStorage.setItem('hvac_job_pickups', JSON.stringify([]));
+            } else {
+              activeJobPickups = parsed;
+            }
+          } catch(e) {
+            activeJobPickups = [];
+          }
+        }
 
         const storedHistory = localStorage.getItem('hvac_receipt_history');
         if (storedHistory) receiptHistory = JSON.parse(storedHistory);
@@ -1460,6 +1482,157 @@
         }
       }
 
+      // --- DYNAMIC ACCESSORIES & JOB-SPECIFIC SUPPLY HOUSE PICKUPS ---
+      const pickups = [];
+      const timestamp = Date.now();
+
+      // 1. Media Air Filter / Cleaner Cabinet
+      if (t.includes('f100') || t.includes('media filter') || t.includes('media cleaner') || t.includes('media air') || t.includes('filter cabinet') || t.includes('aprilaire 213') || t.includes('aprilaire 1210') || t.includes('aprilaire 2210') || t.includes('16x25x4') || t.includes('20x25x4') || t.includes('air cleaner')) {
+        let filterName = 'Honeywell F100 Media Air Cleaner Cabinet (16"x25")';
+        let sku = 'F100F1625';
+        if (t.includes('20x25') || t.includes('2000')) {
+          filterName = 'Honeywell F100 Media Air Cleaner Cabinet (20"x25")';
+          sku = 'F100F2025';
+        } else if (t.includes('aprilaire')) {
+          filterName = 'Aprilaire High-Efficiency Media Filter Cabinet';
+          sku = 'APR-1210';
+        }
+        pickups.push({
+          id: 'pickup-filter-' + timestamp,
+          name: filterName,
+          sku: sku,
+          price: 'Job Spec',
+          checked: false,
+          desc: 'High-efficiency 4-inch whole-home media cabinet & filter'
+        });
+      }
+
+      // 2. Custom Sheet Metal Transition / Return Air Drop
+      if (t.includes('return drop') || t.includes('air drop') || t.includes('transition') || t.includes('custom duct') || t.includes('canvas connector') || t.includes('ductwork') || t.includes('offset')) {
+        pickups.push({
+          id: 'pickup-duct-' + timestamp,
+          name: 'Custom Return Air Drop & Sheet Metal Transition Fitting',
+          sku: 'SM-TRANS',
+          price: 'Pre-Fab',
+          checked: false,
+          desc: 'Galvanized transition fitting to match new furnace cabinet width'
+        });
+      }
+
+      // 3. Condensate Removal Pump
+      if (t.includes('condensate pump') || t.includes('little giant') || t.includes('sauermann') || (t.includes('pump') && !t.includes('heat pump'))) {
+        pickups.push({
+          id: 'pickup-pump-' + timestamp,
+          name: 'Little Giant Automatic Condensate Removal Pump (115V)',
+          sku: 'VCMA-15UL',
+          price: 'Supply House',
+          checked: false,
+          desc: 'Automatic reservoir pump with high-water safety cutoff switch'
+        });
+      }
+
+      // 4. Smart Thermostat / Controls
+      if (t.includes('ecobee') || t.includes('nest') || t.includes('t6 pro') || t.includes('t6') || t.includes('sensi') || t.includes('smart thermostat') || t.includes('wifi stat') || t.includes('wifi thermostat')) {
+        let statName = 'Smart Wi-Fi Programmable Thermostat';
+        let sku = 'STAT-WIFI';
+        if (t.includes('ecobee')) {
+          statName = 'Ecobee Smart Thermostat Premium / Pro';
+          sku = 'EB-STAT-02';
+        } else if (t.includes('nest')) {
+          statName = 'Google Nest Learning Thermostat';
+          sku = 'NEST-PRO';
+        } else if (t.includes('t6')) {
+          statName = 'Honeywell Home T6 Pro Smart Wi-Fi Thermostat';
+          sku = 'TH6320WF2003';
+        }
+        pickups.push({
+          id: 'pickup-stat-' + timestamp,
+          name: statName,
+          sku: sku,
+          price: 'Job Spec',
+          checked: false,
+          desc: 'Multi-stage Wi-Fi control with Power Extender Kit (PEK)'
+        });
+      }
+
+      // 5. IAQ / UV / Air Purifier
+      if (t.includes('reme halo') || t.includes('iwave') || t.includes('uv light') || t.includes('air purifier') || t.includes('halo-led') || t.includes('air scrubber') || t.includes('apco')) {
+        let iaqName = 'RGF REME HALO-LED In-Duct Air Purifier';
+        let sku = 'REME-HALO';
+        if (t.includes('iwave')) {
+          iaqName = 'Nu-Calgon iWave-R Bi-Polar Ionizer';
+          sku = '4900-20';
+        }
+        pickups.push({
+          id: 'pickup-iaq-' + timestamp,
+          name: iaqName,
+          sku: sku,
+          price: 'Job Spec',
+          checked: false,
+          desc: 'Whole-home active in-duct air purification & ionization cell'
+        });
+      }
+
+      // 6. Whole-Home Humidifier
+      if (t.includes('humidifier') || t.includes('aprilaire 600') || t.includes('aprilaire 700') || t.includes('bypass humid')) {
+        pickups.push({
+          id: 'pickup-hum-' + timestamp,
+          name: 'Aprilaire 600M Whole-Home Evaporative Bypass Humidifier',
+          sku: 'APR-600M',
+          price: 'Job Spec',
+          checked: false,
+          desc: 'Includes manual humidistat, bypass damper, & 24V water solenoid valve'
+        });
+      }
+
+      // 7. Snow Riser Legs
+      if (t.includes('snow riser') || t.includes('riser leg') || t.includes('heat pump stand') || (t.includes('riser') && profile === 'heatpump')) {
+        pickups.push({
+          id: 'pickup-riser-' + timestamp,
+          name: '6" Heavy-Duty Condenser Snow Riser Legs (Pair)',
+          sku: 'RISER-6',
+          price: 'Supply House',
+          checked: false,
+          desc: 'Elevates outdoor unit above winter snowline and defrost runoff'
+        });
+      }
+
+      // 8. Lineset Flush Kit (Rx11)
+      if (t.includes('rx11') || t.includes('flush kit') || t.includes('flush lineset') || t.includes('flush line') || t.includes('reuse lineset') || t.includes('reusing lineset') || (t.includes('reuse') && t.includes('line'))) {
+        pickups.push({
+          id: 'pickup-flush-' + timestamp,
+          name: 'Nu-Calgon Rx11-Flush A2L Cleanout Kit (1 lb)',
+          sku: '4300-38',
+          price: 'Supply House',
+          checked: false,
+          desc: 'Removes old mineral oil, sludge, and acid before connecting new unit'
+        });
+      }
+
+      // 9. Architectural Lineset Hide / Fortress
+      if (t.includes('line hide') || t.includes('lineset cover') || t.includes('fortress') || t.includes('slimduct') || t.includes('casing')) {
+        pickups.push({
+          id: 'pickup-hide-' + timestamp,
+          name: 'Fortress Architectural Line Set Duct Casing (12ft Kit)',
+          sku: 'FOR-DUCT',
+          price: 'Supply House',
+          checked: false,
+          desc: 'Exterior UV-resistant PVC cover channel, wall inlet, & end caps'
+        });
+      }
+
+      // 10. Equipment Surge Protector
+      if (t.includes('surge protector') || t.includes('ag3000') || t.includes('intermatic') || t.includes('surge')) {
+        pickups.push({
+          id: 'pickup-surge-' + timestamp,
+          name: 'Intermatic AG3000 Whole-System Surge Protector',
+          sku: 'AG3000',
+          price: 'Supply House',
+          checked: false,
+          desc: 'Type 4X outdoor rated 120/240V surge protective device'
+        });
+      }
+
       return {
         brand,
         title,
@@ -1474,6 +1647,7 @@
         pad_str: `${tonnage > 3.5 ? '38" x 42"' : '36" x 36"'} Pad`,
         scope_str: 'New Lineset • Tearout Added',
         equipment,
+        pickups,
         job_number: job_number || localStorage.getItem('hvac_job_number') || '',
         customer_name: customer_name || localStorage.getItem('hvac_customer_name') || ''
       };
@@ -1744,6 +1918,28 @@
         equipBox.classList.add('hidden');
       }
 
+      // Render Detected Pickups Preview
+      const pickupBox = document.getElementById('jcard-pickups-preview');
+      const pickupListEl = document.getElementById('jcard-pickups-items');
+      const pickupCountEl = document.getElementById('jcard-pickups-count');
+      if (pickupBox && pickupListEl) {
+        if (parsed.pickups && parsed.pickups.length > 0) {
+          if (pickupCountEl) pickupCountEl.innerText = `${parsed.pickups.length} item${parsed.pickups.length === 1 ? '' : 's'}`;
+          pickupListEl.innerHTML = parsed.pickups.map(p => `
+            <div class="p-2 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5 min-w-0 pr-2">
+                <span class="text-xs">📌</span>
+                <span class="font-bold text-purple-200 truncate">${p.name}</span>
+              </div>
+              <span class="px-1.5 py-0.2 rounded font-mono font-bold text-[9px] bg-purple-500/20 text-purple-300 flex-shrink-0">${p.price || 'Supply House'}</span>
+            </div>
+          `).join('');
+          pickupBox.classList.remove('hidden');
+        } else {
+          pickupBox.classList.add('hidden');
+        }
+      }
+
       const card = document.getElementById('jobber-recipe-card');
       card.classList.remove('hidden');
       setTimeout(() => {
@@ -1762,6 +1958,10 @@
       const equipSub = rec.subtitle || '';
 
       updateHeaderDisplay(equipTitle, equipSub, currentProfile);
+
+      // Link Jobber line items to Job-Specific Pickups
+      activeJobPickups = (rec.pickups && Array.isArray(rec.pickups)) ? [...rec.pickups] : [];
+      localStorage.setItem('hvac_job_pickups', JSON.stringify(activeJobPickups));
 
       // Reset today's checklist items for the new morning pick list
       loadedState = {};
@@ -1783,12 +1983,17 @@
         title: equipTitle,
         profile: currentProfile,
         tonnage: rec.tonnage,
-        furnace_eff: rec.furnace_eff
+        furnace_eff: rec.furnace_eff,
+        pickups_count: activeJobPickups.length
       });
+
+      const pickupNotice = activeJobPickups.length > 0
+        ? `\n• 📌 ${activeJobPickups.length} Job-Specific Pickup(s) routed to loadout!`
+        : `\n• 📌 No custom supply pickups needed (Standard truck loadout).`;
 
       alert(`✅ Applied ${equipTitle}!
 • Specs: ${equipSub}
-• System Type: ${badgeName}
+• System Type: ${badgeName}${pickupNotice}
 • Fresh pick list loaded for today.`);
     }
 
@@ -1976,7 +2181,7 @@
     
     // --- 6. RENDER TODAY'S LOADOUT (WITH SIZING BADGES & AUTO FILTERING) ---
     function renderLoadoutView() {
-      // 1. Render Job Pickups (from Johnstone receipts or site conditions)
+      // 1. Render Job Pickups (from Johnstone receipts or Jobber line items)
       const pickupsTitleEl = document.getElementById('header-pickups-customer-title');
       if (pickupsTitleEl) {
         pickupsTitleEl.innerText = 'Job-Specific Pickups';
@@ -1984,30 +2189,46 @@
 
       const pickupsContainer = document.getElementById('group-job-pickups');
       pickupsContainer.innerHTML = '';
-      document.getElementById('count-job-pickups').innerText = `${activeJobPickups.length} items`;
+      const countEl = document.getElementById('count-job-pickups');
+      if (countEl) countEl.innerText = `${activeJobPickups.length} items`;
 
-      activeJobPickups.forEach(p => {
-        const isChecked = !!p.checked;
-        const row = document.createElement('div');
-        row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isChecked ? 'opacity-50 bg-slate-900/30' : ''}`;
-        row.innerHTML = `
-          <div class="flex items-center gap-2.5 flex-1 pr-2">
-            <span class="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 font-bold text-xs flex items-center justify-center flex-shrink-0">📌</span>
-            <div class="flex-1">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${p.name}</span>
-                <span class="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-purple-500/20 text-purple-300">${p.price}</span>
-                <span class="text-[8px] px-1 py-0.2 rounded font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">Johnstone Pickup</span>
-              </div>
-              <div class="text-[10px] text-slate-400 line-clamp-1">${p.desc} • SKU: ${p.sku}</div>
-            </div>
+      const priceBadgeEl = document.getElementById('header-pickups-price-badge');
+      if (priceBadgeEl) {
+        priceBadgeEl.innerText = activeJobPickups.length > 0 ? `${activeJobPickups.length} Pickups` : 'None Required';
+      }
+
+      if (activeJobPickups.length === 0) {
+        pickupsContainer.innerHTML = `
+          <div class="p-3.5 text-center text-slate-400 text-xs">
+            <div class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-purple-500/10 text-purple-300 text-sm mb-1">✨</div>
+            <div class="font-bold text-slate-200">No supply-house pickups needed for this job</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Standard truck inventory covers this installation completely.</div>
           </div>
-          <label class="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer flex-shrink-0">
-            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleJobPickupCheck('${p.id}', this.checked)" class="w-4 h-4 accent-purple-500 rounded cursor-pointer">
-          </label>
         `;
-        pickupsContainer.appendChild(row);
-      });
+      } else {
+        activeJobPickups.forEach(p => {
+          const isChecked = !!p.checked;
+          const row = document.createElement('div');
+          row.className = `p-3 flex items-center justify-between hover:bg-slate-850 transition ${isChecked ? 'opacity-50 bg-slate-900/30' : ''}`;
+          row.innerHTML = `
+            <div class="flex items-center gap-2.5 flex-1 pr-2 cursor-pointer" onclick="openInspector('${p.id}', '${p.name.replace(/'/g, "\\'")}', '${(p.desc || '').replace(/'/g, "\\'")}', 'pickup')">
+              <span class="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-300 font-bold text-xs flex items-center justify-center flex-shrink-0">📌</span>
+              <div class="flex-1">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-xs font-semibold ${isChecked ? 'line-through text-slate-400' : 'text-slate-100'}">${p.name}</span>
+                  <span class="text-[9px] px-1 py-0.2 rounded font-mono font-bold bg-purple-500/20 text-purple-300">${p.price || 'Supply House'}</span>
+                  <span class="text-[8px] px-1 py-0.2 rounded font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">Job Specific</span>
+                </div>
+                <div class="text-[10px] text-slate-400 line-clamp-1">${p.desc || ''}${p.sku ? ' • SKU: ' + p.sku : ''}</div>
+              </div>
+            </div>
+            <label class="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 cursor-pointer flex-shrink-0">
+              <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleJobPickupCheck('${p.id}', this.checked)" class="w-4 h-4 accent-purple-500 rounded cursor-pointer">
+            </label>
+          `;
+          pickupsContainer.appendChild(row);
+        });
+      }
 
       // 2. Render Major Equipment & Units Sized by Jobber
       const equipContainer = document.getElementById('group-loadout-equipment');
@@ -2494,6 +2715,23 @@
         else refrigContainer.appendChild(row);
       });
 
+      updateLoadoutProgress();
+    }
+
+    function promptAddCustomPickup() {
+      const name = prompt("Enter pickup item name (e.g. 16x25 Media Filter, Return Air Drop, Little Giant Condensate Pump):");
+      if (!name || !name.trim()) return;
+      const note = prompt("Enter supplier note or location (e.g. Johnstone Supply, Shop Pre-fab):", "Supply House");
+      activeJobPickups.push({
+        id: 'job-custom-' + Date.now(),
+        name: name.trim(),
+        sku: 'CUSTOM',
+        price: note || 'Pickup',
+        checked: false,
+        desc: note || 'Custom supply pickup'
+      });
+      saveState();
+      renderLoadoutView();
       updateLoadoutProgress();
     }
 

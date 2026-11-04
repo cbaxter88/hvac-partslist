@@ -1,6 +1,7 @@
 import re
 import subprocess
 import os
+import time
 from spec_manual_finder import lookup_equipment_specs
 
 OCR_TOOL_PATH = "/Users/corybaxter/Desktop/AI/projects/HVAC-partslist/ocr_tool"
@@ -535,6 +536,144 @@ def parse_jobber_text(text):
     title = f"{detected_brand} {type_title}".strip() if detected_brand != "HVAC System" else type_title
     sub = " • ".join(sub_parts) if sub_parts else f"{tonnage}-Ton System"
 
+    # 14. Accessories & Dynamic Job-Specific Pickups
+    pickups = []
+    now_ts = int(time.time())
+
+    # Media filter / cabinet
+    if any(k in text_lower for k in ['f100', 'media filter', 'media cleaner', 'media air', 'filter cabinet', 'aprilaire 213', 'aprilaire 1210', 'aprilaire 2210', '16x25x4', '20x25x4', 'air cleaner']):
+        fname = 'Honeywell F100 Media Air Cleaner Cabinet (16"x25")'
+        fsku = 'F100F1625'
+        if '20x25' in text_lower or '2000' in text_lower:
+            fname = 'Honeywell F100 Media Air Cleaner Cabinet (20"x25")'
+            fsku = 'F100F2025'
+        elif 'aprilaire' in text_lower:
+            fname = 'Aprilaire High-Efficiency Media Filter Cabinet'
+            fsku = 'APR-1210'
+        pickups.append({
+            "id": f"pickup-filter-{now_ts}",
+            "name": fname,
+            "sku": fsku,
+            "price": "Job Spec",
+            "checked": False,
+            "desc": "High-efficiency 4-inch whole-home media cabinet & filter"
+        })
+
+    # Custom Return Drop / Sheet Metal Transitions
+    if any(k in text_lower for k in ['return drop', 'air drop', 'transition', 'custom duct', 'canvas connector', 'ductwork', 'offset']):
+        pickups.append({
+            "id": f"pickup-duct-{now_ts}",
+            "name": "Custom Return Air Drop & Sheet Metal Transition Fitting",
+            "sku": "SM-TRANS",
+            "price": "Pre-Fab",
+            "checked": False,
+            "desc": "Galvanized transition fitting to match new furnace cabinet width"
+        })
+
+    # Condensate Pump
+    if any(k in text_lower for k in ['condensate pump', 'little giant', 'sauermann']) or ('pump' in text_lower and 'heat pump' not in text_lower):
+        pickups.append({
+            "id": f"pickup-pump-{now_ts}",
+            "name": "Little Giant Automatic Condensate Removal Pump (115V)",
+            "sku": "VCMA-15UL",
+            "price": "Supply House",
+            "checked": False,
+            "desc": "Automatic reservoir pump with high-water safety cutoff switch"
+        })
+
+    # Smart Thermostat
+    if any(k in text_lower for k in ['ecobee', 'nest', 't6 pro', 't6', 'sensi', 'smart thermostat', 'wifi stat', 'wifi thermostat']):
+        sname = "Smart Wi-Fi Programmable Thermostat"
+        ssku = "STAT-WIFI"
+        if "ecobee" in text_lower:
+            sname = "Ecobee Smart Thermostat Premium / Pro"
+            ssku = "EB-STAT-02"
+        elif "nest" in text_lower:
+            sname = "Google Nest Learning Thermostat"
+            ssku = "NEST-PRO"
+        elif "t6" in text_lower:
+            sname = "Honeywell Home T6 Pro Smart Wi-Fi Thermostat"
+            ssku = "TH6320WF2003"
+        pickups.append({
+            "id": f"pickup-stat-{now_ts}",
+            "name": sname,
+            "sku": ssku,
+            "price": "Job Spec",
+            "checked": False,
+            "desc": "Multi-stage Wi-Fi control with Power Extender Kit (PEK)"
+        })
+
+    # IAQ / UV / Air Purifier
+    if any(k in text_lower for k in ['reme halo', 'iwave', 'uv light', 'air purifier', 'halo-led', 'air scrubber', 'apco']):
+        iname = "RGF REME HALO-LED In-Duct Air Purifier"
+        isku = "REME-HALO"
+        if "iwave" in text_lower:
+            iname = "Nu-Calgon iWave-R Bi-Polar Ionizer"
+            isku = "4900-20"
+        pickups.append({
+            "id": f"pickup-iaq-{now_ts}",
+            "name": iname,
+            "sku": isku,
+            "price": "Job Spec",
+            "checked": False,
+            "desc": "Whole-home active in-duct air purification & ionization cell"
+        })
+
+    # Humidifier
+    if any(k in text_lower for k in ['humidifier', 'aprilaire 600', 'aprilaire 700', 'bypass humid']):
+        pickups.append({
+            "id": f"pickup-hum-{now_ts}",
+            "name": "Aprilaire 600M Whole-Home Evaporative Bypass Humidifier",
+            "sku": "APR-600M",
+            "price": "Job Spec",
+            "checked": False,
+            "desc": "Includes manual humidistat, bypass damper, & 24V water solenoid valve"
+        })
+
+    # Snow Riser Legs
+    if any(k in text_lower for k in ['snow riser', 'riser leg', 'heat pump stand']) or ('riser' in text_lower and system_type == 'heatpump'):
+        pickups.append({
+            "id": f"pickup-riser-{now_ts}",
+            "name": '6" Heavy-Duty Condenser Snow Riser Legs (Pair)',
+            "sku": "RISER-6",
+            "price": "Supply House",
+            "checked": False,
+            "desc": "Elevates outdoor unit above winter snowline and defrost runoff"
+        })
+
+    # Lineset Flush Kit
+    if any(k in text_lower for k in ['rx11', 'flush kit', 'flush lineset', 'flush line', 'reuse lineset', 'reusing lineset']) or ('reuse' in text_lower and 'line' in text_lower):
+        pickups.append({
+            "id": f"pickup-flush-{now_ts}",
+            "name": "Nu-Calgon Rx11-Flush A2L Cleanout Kit (1 lb)",
+            "sku": "4300-38",
+            "price": "Supply House",
+            "checked": False,
+            "desc": "Removes old mineral oil, sludge, and acid before connecting new unit"
+        })
+
+    # Architectural Line Hide
+    if any(k in text_lower for k in ['line hide', 'lineset cover', 'fortress', 'slimduct', 'casing']):
+        pickups.append({
+            "id": f"pickup-hide-{now_ts}",
+            "name": "Fortress Architectural Line Set Duct Casing (12ft Kit)",
+            "sku": "FOR-DUCT",
+            "price": "Supply House",
+            "checked": False,
+            "desc": "Exterior UV-resistant PVC cover channel, wall inlet, & end caps"
+        })
+
+    # Surge Protector
+    if any(k in text_lower for k in ['surge protector', 'ag3000', 'intermatic', 'surge']):
+        pickups.append({
+            "id": f"pickup-surge-{now_ts}",
+            "name": "Intermatic AG3000 Whole-System Surge Protector",
+            "sku": "AG3000",
+            "price": "Supply House",
+            "checked": False,
+            "desc": "Type 4X outdoor rated 120/240V surge protective device"
+        })
+
     return {
         "job_number": job_number,
         "customer_name": customer_name,
@@ -556,6 +695,7 @@ def parse_jobber_text(text):
         "is_heatpump": is_heatpump,
         "is_minisplit": is_minisplit,
         "equipment": equipment,
+        "pickups": pickups,
         "specs": {
             "lineset": lineset_size,
             "lineset_note": lineset_note,
