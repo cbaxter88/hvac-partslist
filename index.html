@@ -87,7 +87,7 @@
         <div class="px-3.5 py-2.5 bg-purple-900/30 flex items-center justify-between border-b border-purple-500/20">
           <div class="flex items-center gap-1.5">
             <span class="text-sm">📌</span>
-            <span class="text-xs font-bold text-purple-200">Job-Specific Pickups (Pitcher)</span>
+            <span id="header-pickups-customer-title" class="text-xs font-bold text-purple-200">Job-Specific Pickups (Pitcher)</span>
             <span id="count-job-pickups" class="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 font-bold">3 items</span>
           </div>
           <span class="text-[10px] text-purple-300 font-mono font-semibold">$179.79 Billed</span>
@@ -1043,6 +1043,116 @@
     let receiptHistory = [];
     let currentActiveInspectId = null;
 
+    const PROFILE_CONFIG = {
+      'full-system': {
+        badge: 'Full Sys',
+        equip: 'American Standard 2.5T AC + 95% S9X1 Furnace'
+      },
+      'furnace-only': {
+        badge: 'Furnace',
+        equip: 'American Standard 95% S9X1 Condensing Furnace'
+      },
+      'ac-only': {
+        badge: 'AC Only',
+        equip: 'American Standard 2.5-Ton 13-SEER2 AC + Cased Coil'
+      },
+      'heatpump': {
+        badge: 'Heat Pump',
+        equip: 'Bosch Premium Inverter 3.0T Heat Pump (BOVA-36)'
+      },
+      'mini-split': {
+        badge: 'Mini-Split',
+        equip: 'Mitsubishi Multi-Zone Ductless Heat Pump'
+      }
+    };
+
+    function updateHeaderDisplay(explicitJobNum, explicitCustName, explicitEquipText, explicitProfile) {
+      if (explicitProfile) {
+        currentProfile = explicitProfile;
+      }
+      if (!currentProfile) {
+        currentProfile = localStorage.getItem('hvac_current_profile') || 'full-system';
+      }
+
+      // 1. Resolve Job # and Customer Name
+      let jobNum = explicitJobNum !== undefined ? explicitJobNum : (localStorage.getItem('hvac_job_number') || '');
+      let custName = explicitCustName !== undefined ? explicitCustName : (localStorage.getItem('hvac_customer_name') || '');
+
+      jobNum = (jobNum || '').toString().trim().replace(/^#/, '');
+      custName = (custName || '').toString().trim();
+
+      // Format header active job string
+      let displayJobTitle = '';
+      if (jobNum && custName) {
+        displayJobTitle = `Job #${jobNum} (${custName})`;
+      } else if (jobNum) {
+        displayJobTitle = `Job #${jobNum}`;
+      } else if (custName) {
+        displayJobTitle = `Job: ${custName}`;
+      } else {
+        displayJobTitle = 'Active Work Order';
+      }
+
+      // 2. Resolve Equipment text
+      let equipText = '';
+      if (explicitEquipText !== undefined && explicitEquipText !== null && explicitEquipText.trim() !== '') {
+        equipText = explicitEquipText.trim();
+      } else if (activeJobberRecipe && (activeJobberRecipe.title || activeJobberRecipe.subtitle)) {
+        const brand = activeJobberRecipe.brand && activeJobberRecipe.brand !== 'HVAC System' ? activeJobberRecipe.brand : '';
+        const t = activeJobberRecipe.title || `${brand} System`.trim();
+        const s = activeJobberRecipe.subtitle || '';
+        equipText = s ? `${t} • ${s}` : t;
+      } else {
+        const storedEquip = localStorage.getItem('hvac_active_equip_summary');
+        const defaultForProf = PROFILE_CONFIG[currentProfile] ? PROFILE_CONFIG[currentProfile].equip : 'Custom HVAC System';
+        equipText = storedEquip || defaultForProf;
+      }
+
+      // 3. Resolve Profile Badge
+      const profileInfo = PROFILE_CONFIG[currentProfile] || { badge: 'Custom', equip: equipText };
+      const badgeText = profileInfo.badge;
+
+      // 4. Update DOM Elements
+      const headerJobEl = document.getElementById('header-active-job');
+      if (headerJobEl) {
+        headerJobEl.innerHTML = `<span>${displayJobTitle}</span><span class="text-[10px] text-slate-500 group-hover:text-slate-300">✏️</span>`;
+      }
+
+      const headerEquipEl = document.getElementById('header-active-equip');
+      if (headerEquipEl) {
+        headerEquipEl.innerText = equipText;
+      }
+
+      const headerBadgeEl = document.getElementById('header-profile-badge');
+      if (headerBadgeEl) {
+        headerBadgeEl.innerText = badgeText;
+      }
+
+      const headerPickupsTitleEl = document.getElementById('header-pickups-customer-title');
+      if (headerPickupsTitleEl) {
+        headerPickupsTitleEl.innerText = `Job-Specific Pickups (${custName || 'Job'})`;
+      }
+
+      // Also highlight active button in modal-profile if present
+      ['full-system', 'mini-split', 'ac-only', 'furnace-only', 'heatpump'].forEach(k => {
+        const btn = document.getElementById(`pbtn-${k}`);
+        if (btn) {
+          if (k === currentProfile) {
+            btn.className = 'p-2.5 rounded-xl border border-emerald-500 bg-emerald-600 text-white font-bold text-left';
+          } else {
+            btn.className = 'p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 font-semibold text-left';
+          }
+        }
+      });
+
+      // 5. Persist to localStorage
+      localStorage.setItem('hvac_job_number', jobNum);
+      localStorage.setItem('hvac_customer_name', custName);
+      localStorage.setItem('hvac_active_job_title', displayJobTitle);
+      localStorage.setItem('hvac_active_equip_summary', equipText);
+      localStorage.setItem('hvac_current_profile', currentProfile);
+    }
+
     // --- 4. INITIALIZATION ---
     function initApp() {
       sendTelemetry('INFO', 'PHONE_CONNECTED', {
@@ -1055,30 +1165,9 @@
         const storedChecks = localStorage.getItem('hvac_checks');
         if (storedChecks) loadedState = JSON.parse(storedChecks);
 
-        const storedJobTitle = localStorage.getItem('hvac_active_job_title');
-        if (storedJobTitle) {
-          const el = document.getElementById('header-active-job');
-          if (el) el.innerHTML = `<span>${storedJobTitle}</span><span class="text-[10px] text-slate-500 group-hover:text-slate-300">✏️</span>`;
-        }
-
-        const storedEquip = localStorage.getItem('hvac_active_equip_summary');
-        if (storedEquip) {
-          const el = document.getElementById('header-active-equip');
-          if (el) el.innerText = storedEquip;
-        }
-
         const storedProfile = localStorage.getItem('hvac_current_profile');
         if (storedProfile) {
           currentProfile = storedProfile;
-          const badgeMap = {
-            'full-system': 'Full Sys',
-            'furnace-only': 'Furnace',
-            'ac-only': 'AC Only',
-            'heatpump': 'Heat Pump',
-            'mini-split': 'Mini-Split'
-          };
-          const badgeEl = document.getElementById('header-profile-badge');
-          if (badgeEl) badgeEl.innerText = badgeMap[currentProfile] || 'Custom';
         }
 
         const storedRecipe = localStorage.getItem('hvac_active_recipe');
@@ -1087,6 +1176,9 @@
             activeJobberRecipe = JSON.parse(storedRecipe);
           } catch(e){}
         }
+
+        // Synchronize and render header immediately
+        updateHeaderDisplay();
 
         const storedPhotos = localStorage.getItem('hvac_custom_photos');
         if (storedPhotos) customItemPhotos = JSON.parse(storedPhotos);
@@ -1478,60 +1570,33 @@
       // Read Job # and Customer from inputs
       const jobInput = document.getElementById('jcard-job-number');
       const custInput = document.getElementById('jcard-customer-name');
-      const jobNum = jobInput ? jobInput.value.trim().replace(/^#/, '') : (rec.job_number || '');
-      const custName = custInput ? custInput.value.trim() : (rec.customer_name || '');
+      let jobNum = jobInput ? jobInput.value.trim().replace(/^#/, '') : (rec.job_number || '');
+      let custName = custInput ? custInput.value.trim() : (rec.customer_name || '');
 
-      let displayJobTitle = '';
-      if (jobNum && custName) {
-        displayJobTitle = `Job #${jobNum} (${custName})`;
-      } else if (jobNum) {
-        displayJobTitle = `Job #${jobNum}`;
-      } else if (custName) {
-        displayJobTitle = `Job: ${custName}`;
-      } else if (rec.job_title) {
-        displayJobTitle = rec.job_title;
-      } else {
-        displayJobTitle = 'Active Work Order';
+      // Preserve previously saved job number and customer name if OCR text didn't catch them
+      if (!jobNum) {
+        jobNum = localStorage.getItem('hvac_job_number') || '';
+      }
+      if (!custName) {
+        custName = localStorage.getItem('hvac_customer_name') || '';
       }
 
       rec.job_number = jobNum;
       rec.customer_name = custName;
-      rec.job_title = displayJobTitle;
 
       // Update Header Display dynamically
       const brand = rec.brand && rec.brand !== 'HVAC System' ? rec.brand : '';
       const equipTitle = rec.title || `${brand} System`.trim();
       const equipSub = rec.subtitle || '';
-      
-      const badgeMap = {
-        'full-system': 'Full Sys',
-        'furnace-only': 'Furnace',
-        'ac-only': 'AC Only',
-        'heatpump': 'Heat Pump',
-        'mini-split': 'Mini-Split'
-      };
-
       const fullEquipText = equipSub ? `${equipTitle} • ${equipSub}` : equipTitle;
 
-      const headerJobEl = document.getElementById('header-active-job');
-      if (headerJobEl) headerJobEl.innerHTML = `<span>${displayJobTitle}</span><span class="text-[10px] text-slate-500 group-hover:text-slate-300">✏️</span>`;
-
-      const headerEquipEl = document.getElementById('header-active-equip');
-      if (headerEquipEl) headerEquipEl.innerText = fullEquipText;
-
-      const headerBadgeEl = document.getElementById('header-profile-badge');
-      if (headerBadgeEl) headerBadgeEl.innerText = badgeMap[currentProfile] || 'Custom';
+      updateHeaderDisplay(jobNum, custName, fullEquipText, currentProfile);
 
       // Reset today's checklist items for the new morning pick list
       loadedState = {};
 
-      // Persist active job and recipe to localStorage
-      localStorage.setItem('hvac_active_job_title', displayJobTitle);
-      localStorage.setItem('hvac_job_number', jobNum);
-      localStorage.setItem('hvac_customer_name', custName);
-      localStorage.setItem('hvac_active_equip_summary', fullEquipText);
+      // Persist active recipe
       localStorage.setItem('hvac_active_recipe', JSON.stringify(rec));
-      localStorage.setItem('hvac_current_profile', currentProfile);
 
       saveState();
       initHiddenParts();
@@ -1540,6 +1605,9 @@
       updateLoadoutProgress();
       closeJobberModal();
       switchAppTab('loadout');
+
+      const displayJobTitle = localStorage.getItem('hvac_active_job_title') || 'Active Work Order';
+      const badgeName = PROFILE_CONFIG[currentProfile] ? PROFILE_CONFIG[currentProfile].badge : currentProfile;
 
       sendTelemetry('ACTION', 'APPLIED_JOBBER_RECIPE', {
         title: equipTitle,
@@ -1551,7 +1619,7 @@
 
       alert(`✅ Applied ${displayJobTitle}!
 • Equipment: ${fullEquipText}
-• System Type: ${badgeMap[currentProfile] || currentProfile}
+• System Type: ${badgeName}
 • Fresh pick list loaded for today.`);
     }
 
@@ -1740,6 +1808,12 @@
     // --- 6. RENDER TODAY'S LOADOUT (WITH SIZING BADGES & AUTO FILTERING) ---
     function renderLoadoutView() {
       // 1. Render Job Pickups (from Johnstone receipts or site conditions)
+      const pickupsCust = localStorage.getItem('hvac_customer_name') || '';
+      const pickupsTitleEl = document.getElementById('header-pickups-customer-title');
+      if (pickupsTitleEl) {
+        pickupsTitleEl.innerText = `Job-Specific Pickups (${pickupsCust || 'Job'})`;
+      }
+
       const pickupsContainer = document.getElementById('group-job-pickups');
       pickupsContainer.innerHTML = '';
       document.getElementById('count-job-pickups').innerText = `${activeJobPickups.length} items`;
@@ -2896,29 +2970,14 @@
         activeJobberRecipe = null;
         localStorage.removeItem('hvac_active_recipe');
       }
-      localStorage.setItem('hvac_current_profile', p);
 
-      const labels = {
-        'full-system': 'Full Sys',
-        'mini-split': 'Mini-Split',
-        'ac-only': 'AC Only',
-        'furnace-only': 'Furnace',
-        'heatpump': 'Heat Pump'
-      };
-      document.getElementById('header-profile-badge').innerText = labels[p] || 'Profile';
-      
-      ['full-system', 'mini-split', 'ac-only', 'furnace-only', 'heatpump'].forEach(k => {
-        const btn = document.getElementById(`pbtn-${k}`);
-        if (k === p) {
-          btn.className = 'p-2.5 rounded-xl border border-emerald-500 bg-emerald-600 text-white font-bold text-left';
-        } else {
-          btn.className = 'p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 font-semibold text-left';
-        }
-      });
+      const defaultEquip = PROFILE_CONFIG[p] ? PROFILE_CONFIG[p].equip : 'Custom HVAC System';
+      updateHeaderDisplay(undefined, undefined, defaultEquip, p);
 
       initHiddenParts();
       initLearnedRecipes();
       renderLoadoutView();
+      closeProfileModal();
     }
 
     function toggleNewCircuit(isChecked) {
@@ -2949,12 +3008,17 @@
     }
 
     function openEditJobModal() {
-      const currentText = localStorage.getItem('hvac_active_job_title') || document.getElementById('header-active-job').innerText.replace('✏️', '').trim();
       const savedNum = localStorage.getItem('hvac_job_number') || '';
       const savedCust = localStorage.getItem('hvac_customer_name') || '';
 
-      document.getElementById('quick-edit-job-num').value = savedNum;
-      document.getElementById('quick-edit-customer').value = savedCust || currentText;
+      const inputJob = document.getElementById('quick-edit-job-num');
+      const inputCust = document.getElementById('quick-edit-customer');
+      const selectType = document.getElementById('quick-edit-system-type');
+
+      if (inputJob) inputJob.value = savedNum;
+      if (inputCust) inputCust.value = savedCust;
+      if (selectType) selectType.value = currentProfile || 'full-system';
+
       document.getElementById('modal-edit-job').classList.remove('opacity-0', 'pointer-events-none');
     }
 
@@ -2963,25 +3027,23 @@
     }
 
     function saveQuickEditJob() {
-      const jobNum = document.getElementById('quick-edit-job-num').value.trim().replace(/^#/, '');
-      const custName = document.getElementById('quick-edit-customer').value.trim();
+      const jobNum = (document.getElementById('quick-edit-job-num')?.value || '').trim().replace(/^#/, '');
+      const custName = (document.getElementById('quick-edit-customer')?.value || '').trim();
+      const selectedType = document.getElementById('quick-edit-system-type')?.value || currentProfile || 'full-system';
 
-      let displayJobTitle = '';
-      if (jobNum && custName) {
-        displayJobTitle = `Job #${jobNum} (${custName})`;
-      } else if (jobNum) {
-        displayJobTitle = `Job #${jobNum}`;
-      } else if (custName) {
-        displayJobTitle = `Job: ${custName}`;
-      } else {
-        displayJobTitle = 'Active Work Order';
+      let newEquipText = null;
+      if (selectedType !== currentProfile) {
+        currentProfile = selectedType;
+        activeJobberRecipe = null;
+        localStorage.removeItem('hvac_active_recipe');
+        newEquipText = PROFILE_CONFIG[selectedType] ? PROFILE_CONFIG[selectedType].equip : 'Custom HVAC System';
       }
 
-      document.getElementById('header-active-job').innerHTML = `<span>${displayJobTitle}</span><span class="text-[10px] text-slate-500 group-hover:text-slate-300">✏️</span>`;
-      localStorage.setItem('hvac_active_job_title', displayJobTitle);
-      localStorage.setItem('hvac_job_number', jobNum);
-      localStorage.setItem('hvac_customer_name', custName);
-
+      updateHeaderDisplay(jobNum, custName, newEquipText, currentProfile);
+      initHiddenParts();
+      initLearnedRecipes();
+      renderLoadoutView();
+      updateLoadoutProgress();
       closeEditJobModal();
     }
 
@@ -3372,6 +3434,16 @@
         <div>
           <label class="block text-slate-400 text-[10px] font-bold uppercase mb-1">Customer / Job Name:</label>
           <input type="text" id="quick-edit-customer" placeholder="e.g. Pitcher" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 outline-none focus:border-emerald-500 font-bold">
+        </div>
+        <div>
+          <label class="block text-slate-400 text-[10px] font-bold uppercase mb-1">System Type:</label>
+          <select id="quick-edit-system-type" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white outline-none focus:border-emerald-500 font-bold">
+            <option value="full-system">Full System AC & Furnace (American Standard S9X1 + 4A7A)</option>
+            <option value="furnace-only">Furnace Only (95% Condensing S9X1)</option>
+            <option value="ac-only">AC Only (2.5-Ton 4A7A + Cased Coil)</option>
+            <option value="heatpump">Heat Pump (Bosch Inverter BOVA-36)</option>
+            <option value="mini-split">Mini-Split (Mitsubishi Ductless Inverter)</option>
+          </select>
         </div>
       </div>
 
