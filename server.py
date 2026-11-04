@@ -23,6 +23,12 @@ class TelemetryHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=SERVE_DIR, **kwargs)
 
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -93,7 +99,8 @@ class TelemetryHandler(http.server.SimpleHTTPRequestHandler):
                 
                 # Log telemetry
                 now = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
-                log_line = f"[{now}] [ACTION] OCR_JOBBER_PARSED | {{'title': '{parsed_result.get('title')}', 'tonnage': {parsed_result.get('tonnage')}, 'chars': {len(extracted_text)}}}\n"
+                clean_preview = extracted_text.replace('\n', ' ')[:140]
+                log_line = f"[{now}] [ACTION] OCR_JOBBER_PARSED | {{'title': '{parsed_result.get('title')}', 'tonnage': {parsed_result.get('tonnage')}, 'chars': {len(extracted_text)}, 'text_preview': {json.dumps(clean_preview)}}}\n"
                 with open(LOG_FILE, 'a', encoding='utf-8') as f:
                     f.write(log_line)
                     f.flush()

@@ -1235,6 +1235,13 @@
       if (googleLabel) {
         googleLabel.innerText = `Search Google / ManualsLib for ${s.brand || fallbackName || 'Equipment'} PDF`;
       }
+
+      // Visual flash animation to confirm specs loaded
+      const titleEl = document.getElementById('spec-modal-title');
+      if (titleEl) {
+        titleEl.classList.add('text-emerald-400');
+        setTimeout(() => titleEl.classList.remove('text-emerald-400'), 800);
+      }
     }
 
     function quickSearchModel(m) {
@@ -1269,17 +1276,19 @@
 
       const rec = activeJobberRecipe || {};
 
-      // Immediate display if specs are pre-linked from Jobber parse
-      const preloadedEquip = (rec.equipment || []).find(e => e.id === equipId);
+      // Only immediate display if specs match this exact queried equipment
+      const preloadedEquip = (rec.equipment || []).find(e => e.id === equipId && (!modelSearch || e.model_code === modelSearch || e.name === modelSearch));
       if (preloadedEquip && preloadedEquip.specs && preloadedEquip.specs.found) {
         if (spinner) spinner.classList.add('hidden');
         applySpecsToModal(preloadedEquip.specs, modelSearch || equipName);
       }
 
+      // If user typed/clicked a specific model (e.g. S9X1, 4A7A), omit rec.brand so model database finds true OEM
+      const isSpecificModel = !!modelSearch && (modelSearch.length <= 12 || /\d/.test(modelSearch));
       const payload = {
         query: modelSearch || equipName,
         model: modelSearch || '',
-        brand: rec.brand || '',
+        brand: isSpecificModel ? '' : (rec.brand || ''),
         tonnage: rec.tonnage || 2.5,
         furnace_btu: rec.furnace_btu || '60k',
         furnace_eff: rec.furnace_eff || '95%'
@@ -1783,11 +1792,29 @@
         equipmentItems = [
           {
             id: 'eq-furnace',
-            name: `${brand} ${furnaceBtu} ${furnaceEff} Furnace`,
+            name: `${brand} ${furnaceBtu} ${furnaceEff} S9X1 Furnace`,
+            model_code: 'S9X1',
             qty: '1 Unit',
             badge: furnaceEff,
             desc: `Single-stage gas furnace • ${furnaceBtu} input • 120V`,
-            model_search: `${brand} ${furnaceBtu} ${furnaceEff} Furnace`,
+            model_search: 'S9X1',
+            manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-CE12D1-1D-EN_09162020.pdf',
+            manual_title: "S9X1 Installer's Guide (PDF)",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard / Trane',
+              model_name: 'American Standard / Trane S9X1',
+              category: 'Furnace (95% Condensing)',
+              mca: '8.5A - 11.2A',
+              mopd: '15A 1-Pole Breaker',
+              electrical: '120V / 1-Phase / 60Hz (14/2 Romex)',
+              venting: is90Plus ? '2" Sch 40 Solid Core PVC (Max 60ft equivalent)' : '4" Category I Metal B-Vent pipe',
+              drain: is90Plus ? '3/4" PVC condensate drain trap' : 'None required (80%)',
+              charge_subcooling: 'Target 10°F Subcooling at service valve',
+              blower_tips: 'Tap 1-4 for Heating CFM, Tap 5-9 for Cooling CFM.',
+              manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-CE12D1-1D-EN_09162020.pdf'
+            },
             icon: '🔥'
           }
         ];
@@ -1795,20 +1822,50 @@
         equipmentItems = [
           {
             id: 'eq-ac',
-            name: `${brand} ${ton}-Ton Condenser (${seer})`,
+            name: `${brand} ${ton}-Ton Condenser (4A7A • ${seer})`,
+            model_code: '4A7A',
             qty: '1 Unit',
             badge: `${ton}T Sizing`,
             desc: `Outdoor AC Condenser • Factory charged • ${seer}`,
-            model_search: `${brand} ${ton}T ${seer} Condenser`,
+            model_search: '4A7A',
+            manual_url: 'https://www.americanstandardair.com/content/dam/amstd-corp/global/manuals/installers-guide-4a7a-ac.pdf',
+            manual_title: "American Standard 4A7A Installer's Guide",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard',
+              model_name: 'American Standard 4A7A Silver AC Condenser',
+              category: 'Air Conditioner Condenser',
+              mca: '14.1A (2.5T)',
+              mopd: '25A-30A 2-Pole Breaker',
+              electrical: '208/230V 1-Phase (10/2 Romex + 60A Disconnect)',
+              lineset: '3/8" Liquid x 3/4" Suction (50ft)',
+              charge_subcooling: 'Factory pre-charged for 15ft. Target 10°F Subcooling.',
+              manual_url: 'https://www.americanstandardair.com/content/dam/amstd-corp/global/manuals/installers-guide-4a7a-ac.pdf'
+            },
             icon: '❄️'
           },
           {
             id: 'eq-coil',
-            name: `${brand} ${ton}-Ton Cased Coil`,
+            name: `${brand} ${ton}-Ton Cased Coil (4PXC)`,
+            model_code: '4PXC',
             qty: '1 Unit',
             badge: 'Factory TXV',
             desc: 'Indoor cased evaporator coil',
-            model_search: `${brand} ${ton}T Cased Coil`,
+            model_search: '4PXC',
+            manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-AD28D1-9A-EN_06152020.pdf',
+            manual_title: "4PXC Cased Coil Installer's Guide (PDF)",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard / Trane',
+              model_name: 'American Standard / Trane 4PXC Cased Coil',
+              category: 'Indoor Cased Evaporator Coil',
+              mca: 'N/A (Passive)',
+              mopd: 'N/A (Powered via furnace)',
+              drain: '3/4" NPT Primary Drain + Safe-T-Switch SS2',
+              manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-AD28D1-9A-EN_06152020.pdf'
+            },
             icon: '❄️'
           }
         ];
@@ -1816,20 +1873,37 @@
         equipmentItems = [
           {
             id: 'eq-hp',
-            name: `${brand} ${ton}-Ton Heat Pump Condenser (${seer})`,
+            name: `Bosch IDS 2.0 Inverter Heat Pump (BOVA-36)`,
+            model_code: 'BOVA-36',
             qty: '1 Unit',
             badge: `${ton}T Heat Pump`,
             desc: `Inverter / Heat Pump outdoor unit • ${seer}`,
-            model_search: `${brand} ${ton}T Heat Pump`,
+            model_search: 'BOVA-36',
+            manual_url: 'https://hvacdirect.com/media/pdf/BOSCH%20BOVA20%20Installation%20Manual.pdf',
+            manual_title: 'Bosch BOVA Installation Manual (PDF)',
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'Bosch',
+              model_name: 'Bosch IDS 2.0 BOVA-36 Inverter Heat Pump',
+              category: 'Inverter Variable-Capacity Heat Pump',
+              mca: '24.2A (BOVA-36)',
+              mopd: '40A Max Breaker',
+              electrical: '208/230V 1-Phase (8/2 Romex)',
+              lineset: '3/8" Liquid x 3/4" Suction (Max 100ft)',
+              charge_subcooling: 'Target 10°F Subcooling',
+              manual_url: 'https://hvacdirect.com/media/pdf/BOSCH%20BOVA20%20Installation%20Manual.pdf'
+            },
             icon: '❄️'
           },
           {
             id: 'eq-air-handler',
-            name: `${brand} ${ton}-Ton Multi-Position Air Handler`,
+            name: `Bosch Multi-Position Air Handler (BVA-36)`,
+            model_code: 'BVA-36',
             qty: '1 Unit',
             badge: 'ECM Blower',
             desc: 'Indoor electric air handler unit',
-            model_search: `${brand} ${ton}T Air Handler`,
+            model_search: 'BVA',
             icon: '💨'
           }
         ];
@@ -1837,20 +1911,36 @@
         equipmentItems = [
           {
             id: 'eq-minisplit-od',
-            name: `${brand} ${ton}-Ton Ductless Inverter Heat Pump`,
+            name: `Mitsubishi Electric M-Series Ductless Heat Pump`,
+            model_code: 'MSZ/MUZ',
             qty: '1 Unit',
             badge: `${ton}T Inverter`,
             desc: 'Variable-speed outdoor ductless condenser',
-            model_search: `${brand} ${ton}T Ductless`,
+            model_search: 'Mitsubishi',
+            manual_url: 'https://www.mitsubishicomfort.com/manuals',
+            manual_title: 'Mitsubishi Electric Installation & Service Manual',
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'Mitsubishi Electric',
+              model_name: 'Mitsubishi Electric M-Series Ductless Heat Pump',
+              category: 'Ductless Mini-Split Heat Pump',
+              mca: '17.0A',
+              mopd: '25A-30A 2-Pole Breaker',
+              electrical: '208/230V 1-Phase',
+              lineset: '1/4" Liquid x 1/2" Suction flare',
+              manual_url: 'https://www.mitsubishicomfort.com/manuals'
+            },
             icon: '❄️'
           },
           {
             id: 'eq-minisplit-id',
-            name: `${brand} High-Wall Ductless Indoor Air Handler`,
+            name: `Mitsubishi High-Wall Ductless Indoor Air Handler`,
+            model_code: 'MSZ',
             qty: '1 Unit',
             badge: 'Wall Mount',
             desc: 'Whisper-quiet indoor evaporator head + remote',
-            model_search: `${brand} Ductless Indoor Unit`,
+            model_search: 'Mitsubishi',
             icon: '💨'
           }
         ];
@@ -1859,29 +1949,77 @@
         equipmentItems = [
           {
             id: 'eq-ac',
-            name: `${brand} ${ton}-Ton Condenser (${seer})`,
+            name: `${brand} ${ton}-Ton Condenser (4A7A • ${seer})`,
+            model_code: '4A7A',
             qty: '1 Unit',
             badge: `${ton}T Sizing`,
             desc: `Outdoor AC Condenser • Factory charged • ${seer}`,
-            model_search: `${brand} ${ton}T ${seer} Condenser`,
+            model_search: '4A7A',
+            manual_url: 'https://www.americanstandardair.com/content/dam/amstd-corp/global/manuals/installers-guide-4a7a-ac.pdf',
+            manual_title: "American Standard 4A7A Installer's Guide",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard',
+              model_name: 'American Standard 4A7A Silver AC Condenser',
+              category: 'Air Conditioner Condenser',
+              mca: '14.1A (2.5T)',
+              mopd: '25A-30A 2-Pole Breaker',
+              electrical: '208/230V 1-Phase (10/2 Romex + 60A Disconnect)',
+              lineset: '3/8" Liquid x 3/4" Suction (50ft)',
+              charge_subcooling: 'Factory pre-charged for 15ft. Target 10°F Subcooling.',
+              manual_url: 'https://www.americanstandardair.com/content/dam/amstd-corp/global/manuals/installers-guide-4a7a-ac.pdf'
+            },
             icon: '❄️'
           },
           {
             id: 'eq-furnace',
-            name: `${brand} ${furnaceBtu} ${furnaceEff} Furnace`,
+            name: `${brand} ${furnaceBtu} ${furnaceEff} S9X1 Furnace`,
+            model_code: 'S9X1',
             qty: '1 Unit',
             badge: furnaceEff,
             desc: `Single-stage gas furnace • ${furnaceBtu} input`,
-            model_search: `${brand} ${furnaceBtu} ${furnaceEff} Furnace`,
+            model_search: 'S9X1',
+            manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-CE12D1-1D-EN_09162020.pdf',
+            manual_title: "S9X1 Installer's Guide (PDF)",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard / Trane',
+              model_name: 'American Standard / Trane S9X1',
+              category: 'Furnace (95% Condensing)',
+              mca: '8.5A - 11.2A',
+              mopd: '15A 1-Pole Breaker',
+              electrical: '120V / 1-Phase / 60Hz (14/2 Romex)',
+              venting: '2" Sch 40 Solid Core PVC (Max 60ft equivalent)',
+              drain: '3/4" PVC condensate drain trap',
+              charge_subcooling: 'Target 10°F Subcooling at service valve',
+              blower_tips: 'Tap 1-4 for Heating CFM, Tap 5-9 for Cooling CFM.',
+              manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-CE12D1-1D-EN_09162020.pdf'
+            },
             icon: '🔥'
           },
           {
             id: 'eq-coil',
-            name: `${brand} ${ton}-Ton Cased Coil`,
+            name: `${brand} ${ton}-Ton Cased Coil (4PXC)`,
+            model_code: '4PXC',
             qty: '1 Unit',
             badge: 'Factory TXV',
             desc: 'Indoor cased evaporator coil',
-            model_search: `${brand} ${ton}T Cased Coil`,
+            model_search: '4PXC',
+            manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-AD28D1-9A-EN_06152020.pdf',
+            manual_title: "4PXC Cased Coil Installer's Guide (PDF)",
+            specs: {
+              found: true,
+              is_exact_match: true,
+              brand: 'American Standard / Trane',
+              model_name: 'American Standard / Trane 4PXC Cased Coil',
+              category: 'Indoor Cased Evaporator Coil',
+              mca: 'N/A (Passive)',
+              mopd: 'N/A (Powered via furnace)',
+              drain: '3/4" NPT Primary Drain + Safe-T-Switch SS2',
+              manual_url: 'https://elibrary.tranetechnologies.com/public/residential-hvac/Literature/Installation/18-AD28D1-9A-EN_06152020.pdf'
+            },
             icon: '❄️'
           }
         ];
@@ -2754,6 +2892,12 @@
 
     function selectProfile(p) {
       currentProfile = p;
+      if (activeJobberRecipe && activeJobberRecipe.profile !== p) {
+        activeJobberRecipe = null;
+        localStorage.removeItem('hvac_active_recipe');
+      }
+      localStorage.setItem('hvac_current_profile', p);
+
       const labels = {
         'full-system': 'Full Sys',
         'mini-split': 'Mini-Split',
@@ -2955,27 +3099,33 @@
       if (!file) return;
 
       const statusEl = document.getElementById('jobber-scan-status');
-      if (statusEl) statusEl.classList.remove('hidden');
+      if (statusEl) {
+        statusEl.innerHTML = `<span>📷</span><span>Compressing & Analyzing Line Items with Vision OCR...</span>`;
+        statusEl.classList.remove('hidden');
+      }
 
       const reader = new FileReader();
       reader.onload = function(e) {
-        fetch('/api/parse-jobber', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: e.target.result })
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (statusEl) statusEl.classList.add('hidden');
-          if (data.success && data.parsed) {
-            renderJobberRecipeConfirmation(data.parsed);
-          } else {
+        compressImageToDataUrl(e.target.result, function(compressedUrl) {
+          fetch('/api/parse-jobber', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: compressedUrl })
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (statusEl) statusEl.classList.add('hidden');
+            if (data.success && data.parsed) {
+              renderJobberRecipeConfirmation(data.parsed);
+            } else {
+              loadSampleJobberScreenshot();
+            }
+          })
+          .catch(err => {
+            console.error('Jobber upload error:', err);
+            if (statusEl) statusEl.classList.add('hidden');
             loadSampleJobberScreenshot();
-          }
-        })
-        .catch(() => {
-          if (statusEl) statusEl.classList.add('hidden');
-          loadSampleJobberScreenshot();
+          });
         });
       };
       reader.readAsDataURL(file);
