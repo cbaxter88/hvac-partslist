@@ -44,7 +44,7 @@
       </div>
       
       <div class="flex items-center gap-1.5 flex-shrink-0">
-        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.8</span>
+        <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Application Version">v2.9</span>
         <button onclick="toggleDebugOverlay()" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs flex items-center justify-center spring" title="Debug Console">
           🐞
         </button>
@@ -388,8 +388,8 @@
         </div>
       </div>
 
-      <!-- REMOVE FROM LOADOUT / OBSOLETE ACTIONS -->
-      <div class="space-y-2 pt-2 border-t border-slate-800 mb-3">
+      <!-- REMOVE FROM LOADOUT / OBSOLETE ACTIONS (Shown for Loadout parts) -->
+      <div id="inspect-loadout-actions" class="space-y-2 pt-2 border-t border-slate-800 mb-3">
         <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Manage Loadout Inclusion:</span>
         <div class="grid grid-cols-2 gap-2">
           <button type="button" onclick="removeCurrentItemFromLoadout(false)" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white font-bold text-xs spring flex items-center justify-center gap-1.5">
@@ -402,6 +402,26 @@
           </button>
         </div>
         <p class="text-[10px] text-slate-500 text-center">"Never Show Again" marks obsolete parts you don't use. Restore anytime in Catalog.</p>
+      </div>
+
+      <!-- TRUCK BIN QUICK STATUS ACTIONS (Shown for Truck Bin parts) -->
+      <div id="inspect-bin-actions" class="hidden space-y-2 pt-2 border-t border-slate-800 mb-3">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Update Truck Bin Stock Level:</span>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" onclick="setInspectBinStatus('stocked')" class="py-2.5 px-2 rounded-xl bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-300 hover:text-white font-bold text-xs spring flex items-center justify-center gap-1">
+            <span>🟢</span>
+            <span>Stocked</span>
+          </button>
+          <button type="button" onclick="setInspectBinStatus('low')" class="py-2.5 px-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/40 border border-amber-500/40 text-amber-300 hover:text-white font-bold text-xs spring flex items-center justify-center gap-1">
+            <span>🟡</span>
+            <span>Low</span>
+          </button>
+          <button type="button" onclick="setInspectBinStatus('empty')" class="py-2.5 px-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 text-red-300 hover:text-white font-bold text-xs spring flex items-center justify-center gap-1">
+            <span>🔴</span>
+            <span>Empty</span>
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-500 text-center">Flagging Low or Empty auto-compiles the Supply House restock list.</p>
       </div>
 
       <button onclick="closeInspector()" class="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white font-semibold text-xs spring">
@@ -2833,10 +2853,16 @@
           <div class="space-y-1.5">
             ${shortages.map(it => `
               <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-1 pr-2 cursor-pointer" onclick="openInspector('${it.id}')">
+                  <button type="button" onclick="event.stopPropagation(); openInspector('${it.id}')" class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-blue-400 hover:text-white spring flex-shrink-0" title="Inspect & Snap Truck Photo">
+                    ℹ️
+                  </button>
                   <span class="text-[10px] px-1.5 py-0.2 rounded font-bold ${it.status === 'empty' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}">${it.status === 'empty' ? '🔴 Out' : '🟡 Low'}</span>
-                  <div>
-                    <span class="font-bold text-white block">${it.name}</span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="font-bold text-white truncate">${it.name}</span>
+                      ${customItemPhotos[it.id] ? `<span class="px-1 py-0.2 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-0.5"><span>📷</span><span>Photo</span></span>` : ''}
+                    </div>
                     <span class="text-[10px] text-slate-400">${it.binName} • Std: ${it.stdPack}</span>
                   </div>
                 </div>
@@ -2904,14 +2930,20 @@
               }
 
               return `
-                <div class="pt-2 flex items-center justify-between text-xs">
-                  <div class="flex-1 pr-2">
-                    <div class="flex items-center gap-1.5">
-                      <span class="font-bold ${it.status === 'empty' ? 'text-slate-400 line-through' : 'text-slate-100'}">${it.name}</span>
-                      ${badgeHtml}
-                    </div>
-                    <div class="text-[10px] text-slate-400 mt-0.5">
-                      <span class="text-slate-500">Std: ${it.stdPack}</span> • <span class="text-emerald-400/90">${it.lastRestocked}</span>
+                <div class="pt-2 flex items-center justify-between text-xs hover:bg-slate-850/40 p-1.5 rounded-xl transition">
+                  <div class="flex items-center gap-2 flex-1 pr-2 cursor-pointer" onclick="openInspector('${it.id}')">
+                    <button type="button" onclick="event.stopPropagation(); openInspector('${it.id}')" class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-blue-400 hover:text-white spring flex-shrink-0" title="Inspect & Snap Truck Photo">
+                      ℹ️
+                    </button>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="font-bold ${it.status === 'empty' ? 'text-slate-400 line-through' : 'text-slate-100'}">${it.name}</span>
+                        ${badgeHtml}
+                        ${customItemPhotos[it.id] ? `<span class="px-1 py-0.2 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-0.5"><span>📷</span><span>Photo</span></span>` : ''}
+                      </div>
+                      <div class="text-[10px] text-slate-400 mt-0.5 truncate">
+                        <span class="text-slate-500">Std: ${it.stdPack}</span> • <span class="text-emerald-400/90">${it.lastRestocked}</span>
+                      </div>
                     </div>
                   </div>
                   <div class="flex-shrink-0">
@@ -2941,19 +2973,88 @@
       }
     }
 
+    function findAnyItemById(id) {
+      if (!id) return null;
+      if (DEFAULT_PARTS_CATALOG[id]) return DEFAULT_PARTS_CATALOG[id];
+
+      for (const list of Object.values(learnedProfileItems)) {
+        if (Array.isArray(list)) {
+          const found = list.find(x => x.id === id);
+          if (found) {
+            return {
+              ...found,
+              shelfLocation: 'Learned Profile Standard',
+              pkgType: found.qty || 'Standard Pack',
+              desc: found.desc || found.name,
+              counterSay: found.name,
+              brands: 'Standard Trade Supply',
+              pkgNotes: 'Company learned standard.',
+              connect: 'Required for this equipment installation.',
+              gotcha: 'Always verify specifications on job site.',
+              boxColor: found.category === 'electrical' ? '#1e3a8a' : '#047857',
+              accentColor: '#38bdf8',
+              badgeText: found.badge || 'STANDARD'
+            };
+          }
+        }
+      }
+
+      const pickup = activeJobPickups.find(x => x.id === id);
+      if (pickup) {
+        return {
+          ...pickup,
+          tag: 'Supply House Pickup',
+          shelfLocation: 'Job-Specific / Johnstone',
+          pkgType: pickup.sku || 'Job Line Item',
+          desc: pickup.desc || pickup.name,
+          counterSay: pickup.name,
+          brands: pickup.sku || 'Supply House',
+          pkgNotes: `Pickup Item • Price: ${pickup.price || 'Billed to Job'}`,
+          connect: 'Installed per job work order.',
+          gotcha: 'Pick up from supply house or shop pre-fab rack before heading to job site.',
+          boxColor: '#581c87',
+          accentColor: '#c084fc',
+          badgeText: 'JOB SPEC'
+        };
+      }
+
+      const binItems = getAllBinItems();
+      const binItem = binItems.find(x => x.id === id);
+      if (binItem) {
+        let bColor = '#1e293b';
+        if (binItem.binId.includes('pvc')) bColor = '#064e3b';
+        else if (binItem.binId.includes('gas')) bColor = '#78350f';
+        else if (binItem.binId.includes('elec')) bColor = '#1e3a8a';
+        else if (binItem.binId.includes('hardware')) bColor = '#334155';
+        else if (binItem.binId.includes('torches') || binItem.binId.includes('chem')) bColor = '#831843';
+
+        return {
+          id: binItem.id,
+          name: binItem.name,
+          tag: binItem.binName || 'Truck Stock',
+          shelfLocation: `${binItem.binName} (${binItem.location || 'Tray'})`,
+          pkgType: binItem.stdPack || 'Standard Pack',
+          desc: binItem.counterSay ? `Counter Say: "${binItem.counterSay}"` : (binItem.desc || `SKU: ${binItem.sku}`),
+          counterSay: binItem.counterSay || binItem.name,
+          brands: binItem.sku || 'Johnstone Supply',
+          pkgNotes: `Standard Pack: ${binItem.stdPack} • Restocked: ${binItem.lastRestocked || 'On file'}`,
+          connect: `Consumable hardware/fittings kept in ${binItem.binName}.`,
+          gotcha: (binItem.status === 'low' || binItem.status === 'empty') ? `⚠️ Status: ${binItem.status.toUpperCase()}! Tap Flag/Restocked to update.` : '✓ Currently stocked on truck.',
+          boxColor: bColor,
+          accentColor: '#38bdf8',
+          badgeText: binItem.sku ? binItem.sku.split('/')[0].trim() : binItem.stdPack,
+          isBinItem: true,
+          binId: binItem.binId
+        };
+      }
+
+      return null;
+    }
+
     // --- 8. REALISTIC PACKAGE INSPECTOR & PHOTO UPDATER ---
     function openInspector(id) {
       currentActiveInspectId = id;
-      const allParts = getAllParts();
-      let item = allParts[id];
-      if (!item) {
-        const learned = (learnedProfileItems[currentProfile] || []).find(x => x.id === id);
-        if (learned) item = learned;
-      }
-      if (!item) {
-        const pickup = activeJobPickups.find(x => x.id === id);
-        if (pickup) item = pickup;
-      }
+      let item = findAnyItemById(id);
       if (!item) item = {
         name: 'Custom Part',
         tag: 'Part Info',
@@ -2980,10 +3081,34 @@
       document.getElementById('inspect-connect').innerText = item.connect;
       document.getElementById('inspect-gotcha').innerText = item.gotcha;
 
+      // Toggle action buttons: Truck Bin status vs Loadout inclusion
+      const loadoutActions = document.getElementById('inspect-loadout-actions');
+      const binActions = document.getElementById('inspect-bin-actions');
+      if (item.isBinItem) {
+        if (loadoutActions) loadoutActions.classList.add('hidden');
+        if (binActions) binActions.classList.remove('hidden');
+      } else {
+        if (loadoutActions) loadoutActions.classList.remove('hidden');
+        if (binActions) binActions.classList.add('hidden');
+      }
+
       renderInspectPhoto(id, item);
 
       const m = document.getElementById('modal-inspector');
       m.classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function setInspectBinStatus(newStatus) {
+      if (!currentActiveInspectId) return;
+      const binItem = getAllBinItems().find(x => x.id === currentActiveInspectId);
+      if (binItem) {
+        setItemStatus(binItem.binId, binItem.id, newStatus);
+        const item = findAnyItemById(currentActiveInspectId);
+        if (item) {
+          document.getElementById('inspect-gotcha').innerText = item.gotcha;
+        }
+        renderTruckBins();
+      }
     }
 
     function closeInspector() {
@@ -3047,8 +3172,10 @@
         compressImageToDataUrl(e.target.result, function(compressedUrl) {
           customItemPhotos[currentActiveInspectId] = compressedUrl;
           saveState();
-          const item = DEFAULT_PARTS_CATALOG[currentActiveInspectId];
+          const item = findAnyItemById(currentActiveInspectId);
           renderInspectPhoto(currentActiveInspectId, item);
+          renderTruckBins();
+          renderLoadoutView();
           alert('✅ Real package photo saved for Truck Stock!');
         });
       };
@@ -3059,8 +3186,11 @@
       if (!currentActiveInspectId) return;
       delete customItemPhotos[currentActiveInspectId];
       saveState();
-      const item = DEFAULT_PARTS_CATALOG[currentActiveInspectId];
+      const item = findAnyItemById(currentActiveInspectId);
       renderInspectPhoto(currentActiveInspectId, item);
+      renderTruckBins();
+      renderLoadoutView();
+      alert('Photo reset to default artwork.');
     }
 
     function compressImageToDataUrl(rawUrl, callback) {
